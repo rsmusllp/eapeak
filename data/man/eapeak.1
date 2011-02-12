@@ -1,0 +1,68 @@
+.TH EAPeak 1
+
+.SH NAME
+EAPeak - Analysis tool for EAP enabled wireless networks.
+
+.SH SYNOPSIS
+eapeak [-h] [-f [PCAPS [PCAPS ...]]]
+              [-s [TARGET_SSIDS [TARGET_SSIDS ...]]] [-l] [-i INTERFACE] [-v]
+
+.SH DESCRIPTION
+EAPeak is an open source tool to facilitate auditing of wireless
+neworks that utilize the Extensible Authentication Protocol framework
+for authentication.  It is meant to give useful information relating to
+the security of these networks for pentesters to use while searching for
+vulnerabilities.  The output of eapeak is a summary of the available
+networks, which BSSIDs are broadcasting them, and what clients are
+associated with them.  The networks are organized based on SSID and if
+no SSID is available they are marked as UNKNOWN_SSID with the
+corresponding BSSID.  Each network is also shown with any clients that
+have been associated with it and the EAP type(s) that the client seems
+to support.
+
+.SH OPTIONS 
+usage: eapeak [-h] [-f [PCAPS [PCAPS ...]]]
+              [-s [TARGET_SSIDS [TARGET_SSIDS ...]]] [-l] [-i INTERFACE] [-v]
+
+Analyze Wireless PCaps
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f [PCAPS [PCAPS ...]], --file [PCAPS [PCAPS ...]]
+                        the path to the PCap file(s)
+  -s [TARGET_SSIDS [TARGET_SSIDS ...]], --ssid [TARGET_SSIDS [TARGET_SSIDS ...]]
+                        specific SSID(s) to analyze
+  -l, --live            analyze packets live
+  -i INTERFACE, --iface INTERFACE
+                        interface to use for live capture
+  -v, --version         show program's version number and exit
+
+.SH RESOURCES
+EAPeak relies on the Scapy libraries.
+
+.SH COPYRIGHT
+Copyright 2011 SecureState
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+MA 02110-1301, USA.
+
+.SH BUGS
+
+.SH AUTHOR
+Spencer McIntyre 
+E-mail : SMcIntyre[at]SecureState.com
+
+.SH SEE ALSO
+RFC 3748 (EAP)

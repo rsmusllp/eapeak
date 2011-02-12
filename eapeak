@@ -1,0 +1,148 @@
+#!/usr/bin/env python
+
+"""
+	-*- coding: utf-8 -*-
+	eapeak.py
+	
+	Author: Spencer McIntyre <smcintyre@securestate.com>
+	
+	Copyright 2011 SecureState
+	
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 2 of the License, or
+	(at your option) any later version.
+	
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License
+	along with this program; if not, write to the Free Software
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+	MA 02110-1301, USA.
+		
+"""
+
+__version_major__ = '0'
+__version_minor__ = '0'
+__version_build__ = '6'
+__version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
+del __version_major__, __version_minor__, __version_build__
+
+__authors__ = [ 'Spencer McIntyre', 'SecureState R&D Team' ]
+
+def main():
+	import os
+	import sys
+	from socket import error as socketError	# needed for the error
+	import logging
+	import argparse
+	try:
+		import curses
+		curses_enabled = True
+	except ImportError:
+		curses_enabled = False
+	
+	# these lines need to adjusted
+	try:
+		from scapy.sendrecv import sniff
+	except ImportError:
+		print 'Error: Missing Scapy Libraries, Please Install Scapy'
+		print 'Error: Now Exiting...'
+		return 1
+	
+	#custom libraries/packages
+	if os.getcwd() in sys.path:
+		sys.path.remove(os.getcwd())
+	try:																	# default to the systems libraries
+		from eapeak.parse import getBSSID									# revert to ./lib on fail for development
+	except ImportError:
+		sys.path.append(os.getcwd() + os.sep + 'lib')
+		from eapeak.parse import getBSSID
+	from eapeak.parse import EapeakParsingEngine
+	
+	parser = argparse.ArgumentParser(description = 'Analyze Wireless PCaps', conflict_handler='resolve')
+	parser.add_argument('-f', '--file', dest = 'pcaps', nargs = '*', action = 'store', default = [], help = 'the path to the PCap file(s)')
+	parser.add_argument('-s', '--ssid', dest = 'target_ssids', nargs = '*', action = 'store', help = 'specific SSID(s) to analyze')
+	parser.add_argument('-l', '--live', dest = 'capture_live', action = 'store_true', default = False, help = 'analyze packets live')
+	if curses_enabled:
+		parser.add_argument('-c', '--curses', dest = 'use_curses', action = 'store_true', default = False, help = 'use the BETA curses interface when capturing live')
+	parser.add_argument('-i', '--iface', dest = 'interface', action = 'store', help = 'interface to use for live capture')
+	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version:' + __version__)
+	results = parser.parse_args()
+	pcapFiles = results.pcaps
+	targetSSIDs = results.target_ssids
+	capture_live = results.capture_live
+	interface = results.interface
+	if capture_live and curses_enabled:
+		use_curses = results.use_curses
+	else:
+		use_curses = False
+	if not capture_live and not pcapFiles:
+		parser.print_help()
+		return 0
+	del results, parser
+	
+	if capture_live and not interface:
+		print 'Error: You must specify an interface when using live mode.'
+		return 1
+	if capture_live and os.getuid():
+		print 'Error: You must be root when using live mode.'
+		return 1
+	print 'Welcome To EAPeak\nVersion: ' + __version__ + '\n'
+	
+	# adjust the scapy logs to make them quite, a hat tip to Philippe Biondi for setting it up so nicely
+	scapy_runtime_log = logging.getLogger("scapy.runtime")
+	scapy_runtime_log.setLevel(logging.ERROR)
+	
+	eapeakParser = EapeakParsingEngine(targetSSIDs)
+	
+	if capture_live:
+		print 'Begining Live Capture...'
+		if use_curses:
+			eapeakParser.initCurses()
+			parsingFunction = eapeakParser.parseLiveCaptureWithCurses
+		else:
+			parsingFunction = eapeakParser.parseLiveCapture
+		try:
+			sniff(iface = interface, prn = lambda packet: parsingFunction(packet) )
+		except KeyboardInterrupt:
+			pass
+		except socketError:
+			print 'Invalid Interface'
+			return 0
+		if use_curses:
+			eapeakParser.cleanupCurses()
+		#return 0
+		print '\nStopping Live Capture...'
+		print ''
+	
+	if pcapFiles:
+		eapeakParser.parsePCapFiles(pcapFiles, False)
+		print ''
+		
+	if not len(eapeakParser.KnownNetworks):
+		print 'Found No Usable Information\nTry Again With A Larger Capture'
+		return 0	# we didn't find anything don't continue
+	
+	intro0 = 'EAPeak Summary of Wireless Networks'
+	intro1 = 'Found ' + str(len(eapeakParser.KnownNetworks)) + ' Network(s)'
+	intro = '*' * len(intro0) + '****\n'
+	intro += '* ' + intro0 + ' *\n'
+	intro += '* ' + intro1 + ' ' * (len(intro0) - len(intro1)) + ' *\n'
+	intro += '*' * len(intro0) + '****\n'
+	print intro
+	del intro, intro0, intro1
+	
+	networks = eapeakParser.KnownNetworks.keys()
+	networks.sort()
+	for network in networks:
+		print eapeakParser.KnownNetworks[network].show()
+		print ''
+
+	return 0
+
+if __name__ == '__main__':
+	main()

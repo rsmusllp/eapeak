@@ -1,0 +1,9 @@
+EAPeak INSTALL
+
+Requirements:
+Python 2.7
+Scapy 2.0.0.0 & up
+
+How To Install:
+python setup.py build
+python setup.py install
