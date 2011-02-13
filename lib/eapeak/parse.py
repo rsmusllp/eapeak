@@ -244,7 +244,7 @@ class EapeakParsingEngine:
 			return
 					
 		# this section extracts useful EAP info
-		if packet.haslayer('EAP'):
+		if 'EAP' in packet:
 			fields = packet.getlayer('EAP').fields
 			if fields.has_key('type'):
 				eaptype = fields['type']
