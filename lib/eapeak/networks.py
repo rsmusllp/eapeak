@@ -23,6 +23,8 @@
 	MA 02110-1301, USA.
 		
 """
+from scapy.layers.l2 import eap_types as EAP_TYPES
+EAP_TYPES[0] = 'NONE'
 
 class WirelessNetwork:
 	ssid = ''	# this is unique
@@ -62,23 +64,14 @@ class WirelessNetwork:
 			return None
 		
 	def show(self):
-		eaptypeLookup = {
-			1:'Identity', 
-			3:'Legacy Nak', 
-			17:'LEAP', # do not focus on
-			25:'PEAP', 
-			43:'EAP-FAST'
-			# still need EAP-TLS
-			# still need EAP-TTLS 
-		}
 		output = 'SSID: ' + self.ssid + '\n'
 		if self.bssids:
 			output += 'BSSIDs:\n\t' + "\n\t".join(self.bssids) + '\n'
 		if self.eapTypes:
 			output += '\tEAP Types:\n'
 			for eapType in self.eapTypes:
-				if eapType in eaptypeLookup.keys():
-					output += '\t\t' + eaptypeLookup[eapType] + '\n'
+				if eapType in EAP_TYPES.keys():
+					output += '\t\t' + EAP_TYPES[eapType] + '\n'
 				else:
 					output += '\t\tEAP Code: ' + str(eapType) + '\n'
 		if self.clients:

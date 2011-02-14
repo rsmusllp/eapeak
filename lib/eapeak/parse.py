@@ -27,8 +27,9 @@ import os
 import sys
 try:
 	import curses
+	CURSES_CAPABLE = True
 except ImportError:
-	pass
+	CURSES_CAPABLE = False
 from struct import unpack
 
 from scapy.utils import rdpcap
@@ -39,6 +40,7 @@ from scapy.sendrecv import sniff
 import eapeak.networks 
 import eapeak.clients
 
+# Statics
 UNKNOWN_SSID_NAME = 'UNKNOWN_SSID'
 SSID_SEARCH_RECURSION = 5
 BSSID_SEARCH_RECURSION = 3
@@ -105,10 +107,13 @@ def mergeWirelessNetworks(source, destination):
 	return destination
 
 class EapeakParsingEngine:
+	"""
+	This is the main engine that manages all of the networks.
+	"""
 	def __init__(self, targetSSIDs = []):
-		self.KnownNetworks = { }				# holds wireless network objects, indexed by SSID if available, BSSID if orphaned
-		self.BSSIDToSSIDMap = { }			# holds SSIDs, indexed by BSSIDS, so you can obtain network objects by BSSID
-		self.OrphanedBSSIDs = [ ]			# holds BSSIDs that are not associated with a known SSID
+		self.KnownNetworks = { }							# holds wireless network objects, indexed by SSID if available, BSSID if orphaned
+		self.BSSIDToSSIDMap = { }							# holds SSIDs, indexed by BSSIDS, so you can obtain network objects by BSSID
+		self.OrphanedBSSIDs = [ ]							# holds BSSIDs that are not associated with a known SSID
 		self.packets = [ ]
 		self.targetSSIDs = targetSSIDs
 		self.packetCounter = 0
@@ -246,58 +251,54 @@ class EapeakParsingEngine:
 		# this section extracts useful EAP info
 		if 'EAP' in packet:
 			fields = packet.getlayer('EAP').fields
-			if fields.has_key('type'):
-				eaptype = fields['type']
-				for x in range(1, 4):
-					addr = 'addr' + str(x)	# outputs addr1 - 3
-					if not packet.fields.has_key(addr):
-						return
-					addr = packet.fields[addr]
-					bssid = getBSSID(packet)
-					if not bssid:
-						return
-					if bssid and not self.BSSIDToSSIDMap.has_key(bssid):
-						self.BSSIDToSSIDMap[bssid] = bssid
-						self.OrphanedBSSIDs.append(bssid)
-						self.KnownNetworks[bssid] = eapeak.networks.WirelessNetwork(UNKNOWN_SSID_NAME)
-						self.KnownNetworks[bssid].addBSSID(bssid)
-					network = self.KnownNetworks[self.BSSIDToSSIDMap[bssid]]				# objects should be returned as pointers, network to client should affect the client object as still in the BSSIDMap
-					bssid = getBSSID(packet)
-					client_mac = getSource(packet)
-					from_AP = False
-					if client_mac == bssid:
-						client_mac = getDestination(packet)
-						from_AP = True
-					if not bssid or not client_mac:
-						return # something went wrong
-					if network.hasClient(client_mac):
-						client = network.getClient(client_mac)
-					else:
-						client = eapeak.clients.WirelessClient(bssid, client_mac)
-					if from_AP:
-						network.addEapType(eaptype)
-					elif not eaptype in [1, 3]:
-						client.addEapType(eaptype)
-					elif eaptype == 3:	# this parses NAKs and attempts to harvest the desired EAP types, RFC 3748
-						if packet.getlayer('EAP').payload:
-							desiredTypes = []
-							tmpdata = str(packet.getlayer('EAP').payload)
-							for byte in tmpdata:
-								desiredTypes.append(unpack('B', byte)[0])
-							client.addDesiredEapTypes(desiredTypes)
-							del tmpdata
-					if eaptype == 17:
+			if fields.['code'] not in [1, 2]:
+				return
+			eaptype = fields['type']
+			for x in range(1, 4):
+				addr = 'addr' + str(x)	# outputs addr1 - 3
+				if not packet.fields.has_key(addr):
+					return
+				addr = packet.fields[addr]
+				bssid = getBSSID(packet)
+				if not bssid:
+					return
+				if bssid and not self.BSSIDToSSIDMap.has_key(bssid):
+					self.BSSIDToSSIDMap[bssid] = bssid
+					self.OrphanedBSSIDs.append(bssid)
+					self.KnownNetworks[bssid] = eapeak.networks.WirelessNetwork(UNKNOWN_SSID_NAME)
+					self.KnownNetworks[bssid].addBSSID(bssid)
+				network = self.KnownNetworks[self.BSSIDToSSIDMap[bssid]]				# objects should be returned as pointers, network to client should affect the client object as still in the BSSIDMap
+				bssid = getBSSID(packet)
+				client_mac = getSource(packet)
+				from_AP = False
+				if client_mac == bssid:
+					client_mac = getDestination(packet)
+					from_AP = True
+				if not bssid or not client_mac:
+					return # something went wrong
+				if network.hasClient(client_mac):
+					client = network.getClient(client_mac)
+				else:
+					client = eapeak.clients.WirelessClient(bssid, client_mac)
+				if from_AP:
+					network.addEapType(eaptype)
+				elif not eaptype in [1, 3]:
+					client.addEapType(eaptype)
+				elif eaptype == 3:	# this parses NAKs and attempts to harvest the desired EAP types, RFC 3748
+					if packet.getlayer('EAP').payload:
+						desiredTypes = []
 						tmpdata = str(packet.getlayer('EAP').payload)
-						offset_end = packet.getlayer('EAP').fields['len'] - 5	# -5 for the 5 bytes of the EAP portion of the Scapy parsed packet
-						if len(tmpdata) > 3:
-							offset_start = unpack('B', tmpdata[2])[0]
-							if len(tmpdata) > offset_start + 3:
-								client.addUsername(tmpdata[3 + offset_start:offset_end])
-							del offset_start
-						del offset_end
-						#if offset == 8:
-						#	client.datastore['LEAP Peer Challenge'] = tmpdata[3: (3 + offset)]
-					network.addClient(client)
+						for byte in tmpdata:
+							desiredTypes.append(unpack('B', byte)[0])
+						client.addDesiredEapTypes(desiredTypes)
+						del tmpdata
+				if eaptype == 1 and eaptype.code == 2 and fields.has_key('identity'):
+					client.addIdentity(1, fields['identity'])
+				if eaptype == 17:
+					identity = packet.getlayer('LEAP').fields['name']
+					if identity:
+						client.addIdentity(17, identity)
+				network.addClient(client)
 			shouldStop = True
 		if shouldStop:
 			return

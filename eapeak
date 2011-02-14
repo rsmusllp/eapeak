@@ -27,7 +27,7 @@
 
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '6'
+__version_build__ = '7'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -53,9 +53,6 @@ def main():
 		print 'Error: Now Exiting...'
 		return 1
 	
-	#custom libraries/packages
-	if os.getcwd() in sys.path:
-		sys.path.remove(os.getcwd())
 	try:																	# default to the systems libraries
 		from eapeak.parse import getBSSID									# revert to ./lib on fail for development
 	except ImportError:
@@ -70,7 +67,7 @@ def main():
 	if curses_enabled:
 		parser.add_argument('-c', '--curses', dest = 'use_curses', action = 'store_true', default = False, help = 'use the BETA curses interface when capturing live')
 	parser.add_argument('-i', '--iface', dest = 'interface', action = 'store', help = 'interface to use for live capture')
-	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version:' + __version__)
+	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	results = parser.parse_args()
 	pcapFiles = results.pcaps
 	targetSSIDs = results.target_ssids
