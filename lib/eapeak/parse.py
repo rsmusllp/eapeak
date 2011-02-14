@@ -50,6 +50,9 @@ DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 CURSES_LINE_BREAK = [0, '']
 TAB_LENGTH = 4	# in spaces
 
+USER_MARKER = '=> '
+USER_MARKER_OFFSET = 8
+
 def getBSSID(packet):
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
@@ -118,20 +121,33 @@ class EapeakParsingEngine:
 		self.targetSSIDs = targetSSIDs
 		self.packetCounter = 0
 		self.curses_enabled = False
+		self.user_marker_pos = 1
+		self.curses_detailed = 0
 		
 	def cleanupCurses(self):
 		self.screen.erase()
 		del self.screen
+		curses.endwin()
+		curses.echo()
 		self.curses_enabled = False
 		
 	def initCurses(self):
 		self.screen = curses.initscr()
+		size = self.screen.getmaxyx()
+		if size[0] < 25 or size[1] < 99:
+			curses.endwin()
+			return 1
+		self.screen.scrollok(True)
 		self.screen.border(0)
 		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
 		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
 		self.screen.addstr(4, TAB_LENGTH, 'Processed 0 Packets')
+		self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 		self.screen.refresh()
+		curses.curs_set(0)
+		curses.noecho()
 		self.curses_enabled = True
+		return 0
 		
 	def parseLiveCapture(self, packet, quite = False):
 		self.packetCounter += 1
@@ -151,9 +167,12 @@ class EapeakParsingEngine:
 		messages.append([1, 'Found ' + str(len(self.KnownNetworks)) + ' Networks'])
 		messages.append([1, "Processed {:,} Packets".format(self.packetCounter)])
 		messages.append(CURSES_LINE_BREAK)
+		
 		messages.append([1, 'Network Information:'])
-		messages.append(CURSES_LINE_BREAK)
-		for network in self.KnownNetworks.values():
+		ssids = self.KnownNetworks.keys()
+		if self.curses_detailed:
+			network = self.KnownNetworks[ssids[self.curses_detailed - 1]]
+			#
 			messages.append([2, 'SSID: ' + network.ssid])
 			messages.append([2, 'BSSIDs:'])
 			for bssid in network.bssids:
@@ -165,10 +184,29 @@ class EapeakParsingEngine:
 				for client in network.clients:
 					messages.append([3, client.mac])
 			messages.append(CURSES_LINE_BREAK)
+		else:
+			messages.append([2, 'SSID:'])
+			messages.append(CURSES_LINE_BREAK)
+			for i in range(0, len(ssids)):
+				messages.append([2, str(i + 1) + ') ' + ssids[i]])
+		#messages.append(CURSES_LINE_BREAK)
+		#for network in self.KnownNetworks.values():
+		#	messages.append([2, 'SSID: ' + network.ssid])
+			#messages.append([2, 'BSSIDs:'])
+			#for bssid in network.bssids:
+				#messages.append([3, bssid])
+			#if network.eapTypes:
+				#messages.append([2, 'EAP Types: ' + ",".join(network.eapTypes)])
+			#if network.clients:
+				#messages.append([2, 'Clients:'])
+				#for client in network.clients:
+					#messages.append([3, client.mac])
+			#messages.append(CURSES_LINE_BREAK)
 		line = 2
 		for message in messages:
 			self.screen.addstr(line, TAB_LENGTH * message[0], message[1])
 			line += 1
+		
 		self.screen.refresh()
 		
 	def parsePCapFiles(self, pcapFiles, quite = True):
@@ -303,3 +341,29 @@ class EapeakParsingEngine:
 		if shouldStop:
 			return
 		return
+
+	def cursesInteractionHandler(self, garbage = None):
+		while self.curses_enabled:
+			c = self.screen.getch()
+			if c == ord('u'):
+				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
+				self.user_marker_pos -= 1
+				if self.user_marker_pos == 0:
+					self.user_marker_pos = len(self.KnownNetworks)
+				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+			elif c == ord('d'):
+				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
+				self.user_marker_pos += 1
+				if self.user_marker_pos > len(self.KnownNetworks):
+					self.user_marker_pos = 1
+				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+			elif c == ord('i'):
+				if self.curses_detailed:
+					self.curses_detailed = 0
+					self.screen.erase()
+					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+					self.screen.refresh()
+				else:
+					self.curses_detailed = self.user_marker_pos
+					self.screen.erase()
+					self.screen.refresh()

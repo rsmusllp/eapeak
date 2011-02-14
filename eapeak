@@ -99,10 +99,16 @@ def main():
 	if capture_live:
 		print 'Begining Live Capture...'
 		if use_curses:
-			eapeakParser.initCurses()
+			errCode = eapeakParser.initCurses()
+			if errCode:
+				print {1:'Screen must be at least 25x99 for Curses'}[errCode]
+				return 1
 			parsingFunction = eapeakParser.parseLiveCaptureWithCurses
 		else:
 			parsingFunction = eapeakParser.parseLiveCapture
+			
+		import thread
+		thread.start_new_thread(eapeakParser.cursesInteractionHandler, ())
 		try:
 			sniff(iface = interface, prn = lambda packet: parsingFunction(packet) )
 		except KeyboardInterrupt:
