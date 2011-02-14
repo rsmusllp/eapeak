@@ -26,3 +26,5 @@ Please Send Bug Reports To: bugs@securestate.com
 
 == Install ==
 For install information please see the INSTALL file.
+The newest Scapy Development build (2.1.1-dev) is required because of
+the changes made to it by the author(s).

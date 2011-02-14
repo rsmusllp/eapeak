@@ -251,7 +251,7 @@ class EapeakParsingEngine:
 		# this section extracts useful EAP info
 		if 'EAP' in packet:
 			fields = packet.getlayer('EAP').fields
-			if fields.['code'] not in [1, 2]:
+			if fields['code'] not in [1, 2]:
 				return
 			eaptype = fields['type']
 			for x in range(1, 4):
@@ -292,10 +292,10 @@ class EapeakParsingEngine:
 							desiredTypes.append(unpack('B', byte)[0])
 						client.addDesiredEapTypes(desiredTypes)
 						del tmpdata
-				if eaptype == 1 and eaptype.code == 2 and fields.has_key('identity'):
+				if eaptype == 1 and fields['code'] == 2 and fields.has_key('identity'):
 					client.addIdentity(1, fields['identity'])
-				if eaptype == 17:
-					identity = packet.getlayer('LEAP').fields['name']
+				if packet.haslayer('LEAP'):
+					identity = packet.getlayer('EAP').payload.fields['name']
 					if identity:
 						client.addIdentity(17, identity)
 				network.addClient(client)

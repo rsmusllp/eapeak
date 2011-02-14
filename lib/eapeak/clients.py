@@ -49,9 +49,9 @@ class WirelessClient:
 	def addDesiredEapTypes(self, eapTypes):
 		self.desiredEapTypes.extend(eapTypes)
 
-	def addIdentity(self, eaptype, name):
+	def addIdentity(self, eaptype, identity):
 		if not identity in self.identities.keys() and identity:
-			self.identities[name] = eaptype
+			self.identities[identity] = eaptype
 
 	def show(self, tabs = 0):
 		output = ('\t' * tabs) + 'MAC: ' + self.mac + '\n'
