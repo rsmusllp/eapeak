@@ -1,6 +1,6 @@
 """
 	-*- coding: utf-8 -*-
-	misc.py
+	parse.py
 	Provided by Package: eapeak
 	
 	Author: Spencer McIntyre <smcintyre@securestate.com>
@@ -25,12 +25,14 @@
 """
 import os
 import sys
+#import signal
 try:
 	import curses
 	CURSES_CAPABLE = True
 except ImportError:
 	CURSES_CAPABLE = False
 from struct import unpack
+from time import sleep
 
 from scapy.utils import rdpcap
 import scapy.packet
@@ -48,10 +50,14 @@ BSSIDPositionMap = { 0:'3', 1:'1', 2:'2', 8:'3', 9:'1', 10:'2' }
 SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
 DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 CURSES_LINE_BREAK = [0, '']
+CURSES_REFRESH_FREQUENCY = 0.2
 TAB_LENGTH = 4	# in spaces
 
 USER_MARKER = '=> '
-USER_MARKER_OFFSET = 8
+USER_MARKER_OFFSET = 7
+SSID_MAX_LENGTH = 32
+from scapy.layers.l2 import eap_types as EAP_TYPES
+EAP_TYPES[0] = 'NONE'
 
 def getBSSID(packet):
 	tmppacket = packet
@@ -121,8 +127,8 @@ class EapeakParsingEngine:
 		self.targetSSIDs = targetSSIDs
 		self.packetCounter = 0
 		self.curses_enabled = False
-		self.user_marker_pos = 1
-		self.curses_detailed = 0
+		self.user_marker_pos = 1							# used with curses
+		self.curses_detailed = None							# used with curses
 		
 	def cleanupCurses(self):
 		self.screen.erase()
@@ -137,7 +143,6 @@ class EapeakParsingEngine:
 		if size[0] < 25 or size[1] < 99:
 			curses.endwin()
 			return 1
-		self.screen.scrollok(True)
 		self.screen.border(0)
 		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
 		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
@@ -147,67 +152,16 @@ class EapeakParsingEngine:
 		curses.curs_set(0)
 		curses.noecho()
 		self.curses_enabled = True
+		#signal.signal(signal.SIGWINCH, self.cursesSigwinchHandler )
 		return 0
 		
 	def parseLiveCapture(self, packet, quite = False):
 		self.packetCounter += 1
 		self.parseWirelessPacket(packet)
-		if not quite:
-			sys.stdout.write('Packets: ' + str(self.packetCounter) + ' Wireless Networks: ' + str(len(self.KnownNetworks)) + '\r')
-			sys.stdout.flush()
-			
-	def parseLiveCaptureWithCurses(self, packet):
-		if not self.curses_enabled:
+		if not self.curses_enabled or quite:
 			return
-		self.packetCounter += 1
-		self.parseWirelessPacket(packet)
-		
-		messages = []
-		messages.append([1, 'EAPeak Capturing Live'])
-		messages.append([1, 'Found ' + str(len(self.KnownNetworks)) + ' Networks'])
-		messages.append([1, "Processed {:,} Packets".format(self.packetCounter)])
-		messages.append(CURSES_LINE_BREAK)
-		
-		messages.append([1, 'Network Information:'])
-		ssids = self.KnownNetworks.keys()
-		if self.curses_detailed:
-			network = self.KnownNetworks[ssids[self.curses_detailed - 1]]
-			#
-			messages.append([2, 'SSID: ' + network.ssid])
-			messages.append([2, 'BSSIDs:'])
-			for bssid in network.bssids:
-				messages.append([3, bssid])
-			if network.eapTypes:
-				messages.append([2, 'EAP Types: ' + ",".join(network.eapTypes)])
-			if network.clients:
-				messages.append([2, 'Clients:'])
-				for client in network.clients:
-					messages.append([3, client.mac])
-			messages.append(CURSES_LINE_BREAK)
-		else:
-			messages.append([2, 'SSID:'])
-			messages.append(CURSES_LINE_BREAK)
-			for i in range(0, len(ssids)):
-				messages.append([2, str(i + 1) + ') ' + ssids[i]])
-		#messages.append(CURSES_LINE_BREAK)
-		#for network in self.KnownNetworks.values():
-		#	messages.append([2, 'SSID: ' + network.ssid])
-			#messages.append([2, 'BSSIDs:'])
-			#for bssid in network.bssids:
-				#messages.append([3, bssid])
-			#if network.eapTypes:
-				#messages.append([2, 'EAP Types: ' + ",".join(network.eapTypes)])
-			#if network.clients:
-				#messages.append([2, 'Clients:'])
-				#for client in network.clients:
-					#messages.append([3, client.mac])
-			#messages.append(CURSES_LINE_BREAK)
-		line = 2
-		for message in messages:
-			self.screen.addstr(line, TAB_LENGTH * message[0], message[1])
-			line += 1
-		
-		self.screen.refresh()
+		sys.stdout.write('Packets: ' + str(self.packetCounter) + ' Wireless Networks: ' + str(len(self.KnownNetworks)) + '\r')
+		sys.stdout.flush()
 		
 	def parsePCapFiles(self, pcapFiles, quite = True):
 		for i in range(0, len(pcapFiles)):
@@ -250,7 +204,7 @@ class EapeakParsingEngine:
 		if packet.haslayer('Dot11Beacon') or packet.haslayer('Dot11ProbeResp') or packet.haslayer('Dot11AssoReq'):
 			tmp = packet
 			for x in range(0, SSID_SEARCH_RECURSION):
-				if tmp.fields.has_key('ID') and tmp.fields['ID'] == 0 and tmp.fields.has_key('info'):	# this line verifies that we found an SSID
+				if 'ID' in tmp.fields and tmp.fields['ID'] == 0 and 'info' in tmp.fields:	# this line verifies that we found an SSID
 					if tmp.fields['info'] == '\x00':
 						break	# null SSIDs are useless
 					if self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs:	# these are not the SSIDs you are looking for
@@ -259,17 +213,17 @@ class EapeakParsingEngine:
 					if not bssid:
 						return
 					ssid = ''.join([c for c in tmp.fields['info'] if ord(c) > 31 or ord(c) == 9])
-					if bssid in self.OrphanedBSSIDs:									# if this info is relating to a BSSID that was previously considered to be orphaned
+					if bssid in self.OrphanedBSSIDs:								# if this info is relating to a BSSID that was previously considered to be orphaned
 						newNetwork = self.KnownNetworks[bssid]						# retrieve the old one
 						del self.KnownNetworks[bssid]								# delete the old network's orphaned reference
 						self.OrphanedBSSIDs.remove(bssid)
 						self.BSSIDToSSIDMap[bssid] = ssid							# this changes the map from BSSID -> BSSID (for orphans) to BSSID -> SSID
 						newNetwork.updateSSID(ssid)
-						if ssid in self.KnownNetworks.keys():
+						if ssid in self.KnownNetworks:
 							newNetwork = mergeWirelessNetworks(newNetwork, self.KnownNetworks[ ssid ])
-					elif bssid in self.BSSIDToSSIDMap.keys():
+					elif bssid in self.BSSIDToSSIDMap:
 						continue
-					elif ssid in self.KnownNetworks.keys():		# this is a BSSID from a probe for an SSID we've seen before
+					elif ssid in self.KnownNetworks:								# this is a BSSID from a probe for an SSID we've seen before
 						newNetwork = self.KnownNetworks[ ssid ]
 					elif bssid:
 						newNetwork = eapeak.networks.WirelessNetwork(ssid)
@@ -300,7 +254,7 @@ class EapeakParsingEngine:
 				bssid = getBSSID(packet)
 				if not bssid:
 					return
-				if bssid and not self.BSSIDToSSIDMap.has_key(bssid):
+				if bssid and not bssid in self.BSSIDToSSIDMap:
 					self.BSSIDToSSIDMap[bssid] = bssid
 					self.OrphanedBSSIDs.append(bssid)
 					self.KnownNetworks[bssid] = eapeak.networks.WirelessNetwork(UNKNOWN_SSID_NAME)
@@ -330,9 +284,9 @@ class EapeakParsingEngine:
 							desiredTypes.append(unpack('B', byte)[0])
 						client.addDesiredEapTypes(desiredTypes)
 						del tmpdata
-				if eaptype == 1 and fields['code'] == 2 and fields.has_key('identity'):
+				if eaptype == 1 and fields['code'] == 2 and 'identity' in fields:
 					client.addIdentity(1, fields['identity'])
-				if packet.haslayer('LEAP'):
+				if packet.haslayer('LEAP') and 'name' in packet.getlayer('EAP').payload.fields:
 					identity = packet.getlayer('EAP').payload.fields['name']
 					if identity:
 						client.addIdentity(17, identity)
@@ -345,6 +299,8 @@ class EapeakParsingEngine:
 	def cursesInteractionHandler(self, garbage = None):
 		while self.curses_enabled:
 			c = self.screen.getch()
+			if self.curses_detailed and c != ord('i'):
+				continue
 			if c == ord('u'):
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 				self.user_marker_pos -= 1
@@ -359,11 +315,98 @@ class EapeakParsingEngine:
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			elif c == ord('i'):
 				if self.curses_detailed:
-					self.curses_detailed = 0
+					self.curses_detailed = None
 					self.screen.erase()
+					self.screen.border(0)
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 					self.screen.refresh()
 				else:
-					self.curses_detailed = self.user_marker_pos
+					self.curses_detailed = self.KnownNetworks.keys()[self.user_marker_pos - 1]
 					self.screen.erase()
+					self.screen.border(0)
 					self.screen.refresh()
+					
+	def cursesScreenDrawHandler(self):
+		while self.curses_enabled:
+			messages = []
+			messages.append([1, 'EAPeak Capturing Live'])
+			messages.append([1, 'Found ' + str(len(self.KnownNetworks)) + ' Networks'])
+			messages.append([1, 'Processed ' + str(self.packetCounter) + ' Packets'])
+			messages.append(CURSES_LINE_BREAK)
+			messages.append([1, 'Network Information:'])
+			ssids = self.KnownNetworks.keys()
+			if self.curses_detailed and self.curses_detailed in self.KnownNetworks:
+				network = self.KnownNetworks[ self.curses_detailed ]
+				messages.append([2, 'SSID: ' + network.ssid])
+				messages.append(CURSES_LINE_BREAK)
+				
+				messages.append([2, 'BSSIDs:'])
+				for bssid in network.bssids:
+					messages.append([3, bssid])
+				tmpEapTypes = []
+				if network.eapTypes:
+					for eType in network.eapTypes:
+						if eType in EAP_TYPES:
+							tmpEapTypes.append(EAP_TYPES[eType])
+						else:
+							tmpEapTypes.append(str(eType))
+				messages.append(CURSES_LINE_BREAK)
+				
+				if tmpEapTypes:
+					messages.append([2, 'EAP Types: ' + ", ".join(tmpEapTypes)])
+				else:
+					messages.append([2, 'EAP Types: [ NONE ]'])
+				messages.append(CURSES_LINE_BREAK)
+				
+				messages.append([2, 'Clients:'])
+				if network.clients:
+					clients = network.clients.values()
+					for i in range(0, len(clients)):
+						client = clients[i]
+						messages.append([3, 'Client #' + str(i + 1) ])
+						messages.append([3, client.mac])
+						if client.identities:
+							messages.append([3, 'Identities:'])
+						for ident, eap in client.identities.items():
+							messages.append([4, '(' + EAP_TYPES[eap] + ') ' + ident])
+					del clients
+				else:
+					messages.append([3, '[ NONE ]'])
+				#messages.append(CURSES_LINE_BREAK)
+				
+			else:
+				messages.append([2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 1) + 'EAP Types:'])
+				for i in range(0, len(ssids)):
+					network = self.KnownNetworks[ssids[i]]
+					tmpEapTypes = []
+					if network.eapTypes:
+						for eType in network.eapTypes:
+							if eType in EAP_TYPES:
+								tmpEapTypes.append(EAP_TYPES[eType])
+							else:
+								tmpEapTypes.append(str(eType))
+					if i < 10:
+						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 4) + ", ".join(tmpEapTypes)])
+					else:
+						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
+			line = 2
+			for message in messages:
+				self.screen.addstr(line, TAB_LENGTH * message[0], message[1])
+				line += 1
+			self.screen.refresh()
+			sleep(CURSES_REFRESH_FREQUENCY)
+	
+	def cursesSigwinchHandler(self, n, frame):
+		curses.endwin()
+		self.screen = curses.initscr()
+		size = self.screen.getmaxyx()
+		if size[0] < 25 or size[1] < 99:
+			curses.endwin()
+			sys.exit(2)
+		self.screen.border(0)
+		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
+		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
+		self.screen.addstr(4, TAB_LENGTH, 'Processed 0 Packets')
+		self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+		self.screen.refresh()
+		return 0
