@@ -50,7 +50,7 @@ BSSIDPositionMap = { 0:'3', 1:'1', 2:'2', 8:'3', 9:'1', 10:'2' }
 SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
 DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 CURSES_LINE_BREAK = [0, '']
-CURSES_REFRESH_FREQUENCY = 0.2
+CURSES_REFRESH_FREQUENCY = 0.25
 TAB_LENGTH = 4	# in spaces
 
 USER_MARKER = '=> '
@@ -155,7 +155,7 @@ class EapeakParsingEngine:
 		#signal.signal(signal.SIGWINCH, self.cursesSigwinchHandler )
 		return 0
 		
-	def parseLiveCapture(self, packet, quite = False):
+	def parseLiveCapture(self, packet, quite = True):
 		self.packetCounter += 1
 		self.parseWirelessPacket(packet)
 		if not self.curses_enabled or quite:
@@ -331,7 +331,7 @@ class EapeakParsingEngine:
 			messages = []
 			messages.append([1, 'EAPeak Capturing Live'])
 			messages.append([1, 'Found ' + str(len(self.KnownNetworks)) + ' Networks'])
-			messages.append([1, 'Processed ' + str(self.packetCounter) + ' Packets'])
+			messages.append([1, "Processed {:,} Packets".format(self.packetCounter)])
 			messages.append(CURSES_LINE_BREAK)
 			messages.append([1, 'Network Information:'])
 			ssids = self.KnownNetworks.keys()
@@ -358,22 +358,21 @@ class EapeakParsingEngine:
 					messages.append([2, 'EAP Types: [ NONE ]'])
 				messages.append(CURSES_LINE_BREAK)
 				
-				messages.append([2, 'Clients:'])
 				if network.clients:
+					messages.append([2, 'Clients:'])
 					clients = network.clients.values()
 					for i in range(0, len(clients)):
 						client = clients[i]
 						messages.append([3, 'Client #' + str(i + 1) ])
-						messages.append([3, client.mac])
+						messages.append([3, 'MAC: ' + client.mac])
 						if client.identities:
 							messages.append([3, 'Identities:'])
 						for ident, eap in client.identities.items():
 							messages.append([4, '(' + EAP_TYPES[eap] + ') ' + ident])
+						messages.append(CURSES_LINE_BREAK)
 					del clients
 				else:
-					messages.append([3, '[ NONE ]'])
-				#messages.append(CURSES_LINE_BREAK)
-				
+					messages.append([2, 'Clients: [ NONE ]'])
 			else:
 				messages.append([2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 1) + 'EAP Types:'])
 				for i in range(0, len(ssids)):

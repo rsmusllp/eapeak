@@ -27,7 +27,7 @@
 
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '7'
+__version_build__ = '8'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -48,11 +48,25 @@ def main():
 	
 	# these lines need to adjusted
 	try:
-		from scapy.sendrecv import sniff
+		from scapy.config import conf
 	except ImportError:
 		print 'Error: Missing Scapy Libraries, Please Install Scapy'
 		print 'Error: Now Exiting...'
 		return 1
+		
+	# these edit the load_layers configuration to keep layers we don't need out and consume less memory
+	not_needed_layers = [	'bluetooth', 'cdp', 'dhcp', 'dhcp6', 'dns', 'eigrp', 'hsrp', 'inet6', 'ir',
+							'isakmp', 'l2tp', 'llmnr', 'mgcp', 'mobileip', 'netbios', 'netflow', 'ntp',
+							'ospf', 'ppi_cace', 'ppi_geotag', 'ppi', 'ppp', 'rip', 'rtp', 'sctp', 'sebek',
+							'skinny', 'smb', 'snmp', 'tftp', 'vrrp', 'x509'
+						]
+
+	for layer in not_needed_layers:
+		conf.load_layers.remove(layer)
+	del layer, not_needed_layers
+	conf.ipv6_enabled = False
+	
+	from scapy.sendrecv import sniff
 	
 	try:																	# default to the systems libraries
 		from eapeak.parse import EapeakParsingEngine						# revert to ./lib on fail for development
@@ -111,7 +125,7 @@ def main():
 		thread.start_new_thread(eapeakParser.cursesInteractionHandler, () )
 		thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, () )
 		try:
-			sniff(iface = interface, prn = lambda packet: eapeakParser.parseLiveCapture(packet) )
+			sniff(iface = interface, store = 0, prn = lambda packet: eapeakParser.parseLiveCapture(packet) )
 		except KeyboardInterrupt:
 			pass
 		except socketError:
