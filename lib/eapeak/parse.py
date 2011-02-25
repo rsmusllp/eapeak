@@ -51,10 +51,12 @@ SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
 DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 CURSES_LINE_BREAK = [0, '']
 CURSES_REFRESH_FREQUENCY = 0.25
+CURSES_MIN_X = 99		# minimum screen size
+CURSES_MIN_Y = 25
 TAB_LENGTH = 4	# in spaces
 
 USER_MARKER = '=> '
-USER_MARKER_OFFSET = 7
+USER_MARKER_OFFSET = 8
 SSID_MAX_LENGTH = 32
 from scapy.layers.l2 import eap_types as EAP_TYPES
 EAP_TYPES[0] = 'NONE'
@@ -127,8 +129,6 @@ class EapeakParsingEngine:
 		self.targetSSIDs = targetSSIDs
 		self.packetCounter = 0
 		self.curses_enabled = False
-		self.user_marker_pos = 1							# used with curses
-		self.curses_detailed = None							# used with curses
 		
 	def cleanupCurses(self):
 		self.screen.erase()
@@ -138,11 +138,16 @@ class EapeakParsingEngine:
 		self.curses_enabled = False
 		
 	def initCurses(self):
+		self.user_marker_pos = 1							# used with curses
+		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
+		self.curses_detailed = None							# used with curses
 		self.screen = curses.initscr()
 		size = self.screen.getmaxyx()
-		if size[0] < 25 or size[1] < 99:
+		if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
 			curses.endwin()
 			return 1
+		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
+		self.curses_max_columns = size[1] - 2
 		self.screen.border(0)
 		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
 		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
@@ -213,6 +218,8 @@ class EapeakParsingEngine:
 					if not bssid:
 						return
 					ssid = ''.join([c for c in tmp.fields['info'] if ord(c) > 31 or ord(c) == 9])
+					if not ssid:
+						return
 					if bssid in self.OrphanedBSSIDs:								# if this info is relating to a BSSID that was previously considered to be orphaned
 						newNetwork = self.KnownNetworks[bssid]						# retrieve the old one
 						del self.KnownNetworks[bssid]								# delete the old network's orphaned reference
@@ -303,16 +310,26 @@ class EapeakParsingEngine:
 				continue
 			if c == ord('u'):
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
-				self.user_marker_pos -= 1
-				if self.user_marker_pos == 0:
-					self.user_marker_pos = len(self.KnownNetworks)
+				if self.user_marker_pos == 1 and self.curses_row_offset == 0:
+					# ceiling
+					pass
+				elif self.user_marker_pos == 1 and self.curses_row_offset:
+					self.curses_row_offset -= 1
+				else:
+					self.user_marker_pos -= 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+				
 			elif c == ord('d'):
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
-				self.user_marker_pos += 1
-				if self.user_marker_pos > len(self.KnownNetworks):
-					self.user_marker_pos = 1
+				if self.user_marker_pos + self.curses_row_offset == len(self.KnownNetworks):
+					# floor
+					pass
+				elif self.user_marker_pos == self.curses_max_rows - 9:
+					self.curses_row_offset += 1
+				else:
+					self.user_marker_pos += 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+				
 			elif c == ord('i'):
 				if self.curses_detailed:
 					self.curses_detailed = None
@@ -321,7 +338,7 @@ class EapeakParsingEngine:
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 					self.screen.refresh()
 				else:
-					self.curses_detailed = self.KnownNetworks.keys()[self.user_marker_pos - 1]
+					self.curses_detailed = self.KnownNetworks.keys()[self.user_marker_pos - 1 + self.curses_row_offset]
 					self.screen.erase()
 					self.screen.border(0)
 					self.screen.refresh()
@@ -375,7 +392,14 @@ class EapeakParsingEngine:
 					messages.append([2, 'Clients: [ NONE ]'])
 			else:
 				messages.append([2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 1) + 'EAP Types:'])
-				for i in range(0, len(ssids)):
+				if self.curses_row_offset:
+					messages.append([2, '[ MORE ]'])
+				else:
+					messages.append([2, '        '])
+				for i in range(self.curses_row_offset, len(ssids)):
+					if len(messages) > self.curses_max_rows - 3:
+						messages.append([2, '[ MORE ]'])
+						break
 					network = self.KnownNetworks[ssids[i]]
 					tmpEapTypes = []
 					if network.eapTypes:
@@ -388,6 +412,8 @@ class EapeakParsingEngine:
 						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 4) + ", ".join(tmpEapTypes)])
 					else:
 						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
+				if not len(messages) > self.curses_max_rows - 2:
+					messages.append([2, '        '])
 			line = 2
 			for message in messages:
 				self.screen.addstr(line, TAB_LENGTH * message[0], message[1])

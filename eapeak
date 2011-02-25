@@ -2,7 +2,7 @@
 
 """
 	-*- coding: utf-8 -*-
-	eapeak.py
+	eapeak
 	
 	Author: Spencer McIntyre <smcintyre@securestate.com>
 	
@@ -27,7 +27,7 @@
 
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '8'
+__version_build__ = '9'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 

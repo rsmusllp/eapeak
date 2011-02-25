@@ -39,7 +39,7 @@ class WirelessClient:
 		self.mac = mac
 		self.identities = {}			# eaptypes keyed by identities (probably won't have more than one or two, but the identities are unique, allowing for multiple usernames)
 		self.eapTypes = []
-		self.desiredEapTypes = []		# this isn't used yet, but it's here for the future, it's populated with a NAK is found
+		self.desiredEapTypes = []		# this isn't used yet, but it's here for the future, it's populated when a NAK is found
 		self.datastore = {}				# I love metasploit
 	
 	def addEapType(self, eapType):
