@@ -3,7 +3,7 @@
 	parse.py
 	Provided by Package: eapeak
 	
-	Author: Spencer McIntyre <smcintyre@securestate.com>
+	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
 	
 	Copyright 2011 SecureState
 	
@@ -23,6 +23,8 @@
 	MA 02110-1301, USA.
 		
 """
+import pdb
+
 import os
 import sys
 #import signal
@@ -35,6 +37,7 @@ from struct import unpack
 from time import sleep
 
 from scapy.utils import rdpcap
+from scapy.layers.l2 import eap_types as EAP_TYPES
 import scapy.packet
 import scapy.layers.all
 from scapy.sendrecv import sniff
@@ -161,7 +164,6 @@ class EapeakParsingEngine:
 		return 0
 		
 	def parseLiveCapture(self, packet, quite = True):
-		self.packetCounter += 1
 		self.parseWirelessPacket(packet)
 		if not self.curses_enabled or quite:
 			return
@@ -204,7 +206,7 @@ class EapeakParsingEngine:
 			
 	def parseWirelessPacket(self, packet):
 		shouldStop = False
-		
+		self.packetCounter += 1
 		# this section finds SSIDs in Bacons, I don't like this section, but I do like bacon
 		if packet.haslayer('Dot11Beacon') or packet.haslayer('Dot11ProbeResp') or packet.haslayer('Dot11AssoReq'):
 			tmp = packet
@@ -212,7 +214,7 @@ class EapeakParsingEngine:
 				if 'ID' in tmp.fields and tmp.fields['ID'] == 0 and 'info' in tmp.fields:	# this line verifies that we found an SSID
 					if tmp.fields['info'] == '\x00':
 						break	# null SSIDs are useless
-					if self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs:	# these are not the SSIDs you are looking for
+					if self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs:	# Obi says: These are not the SSIDs you are looking for...
 						break
 					bssid = getBSSID(packet)
 					if not bssid:
@@ -227,11 +229,11 @@ class EapeakParsingEngine:
 						self.BSSIDToSSIDMap[bssid] = ssid							# this changes the map from BSSID -> BSSID (for orphans) to BSSID -> SSID
 						newNetwork.updateSSID(ssid)
 						if ssid in self.KnownNetworks:
-							newNetwork = mergeWirelessNetworks(newNetwork, self.KnownNetworks[ ssid ])
+							newNetwork = mergeWirelessNetworks(newNetwork, self.KnownNetworks[ssid])
 					elif bssid in self.BSSIDToSSIDMap:
 						continue
 					elif ssid in self.KnownNetworks:								# this is a BSSID from a probe for an SSID we've seen before
-						newNetwork = self.KnownNetworks[ ssid ]
+						newNetwork = self.KnownNetworks[ssid]						# so pick up where we left off by using the curent state of the WirelessNetwork object
 					elif bssid:
 						newNetwork = eapeak.networks.WirelessNetwork(ssid)
 						self.BSSIDToSSIDMap[bssid] = ssid
@@ -250,54 +252,61 @@ class EapeakParsingEngine:
 		# this section extracts useful EAP info
 		if 'EAP' in packet:
 			fields = packet.getlayer('EAP').fields
-			if fields['code'] not in [1, 2]:
+			if fields['code'] not in [1, 2]:							# don't bother parsing through success and failures just yet.
 				return
 			eaptype = fields['type']
 			for x in range(1, 4):
-				addr = 'addr' + str(x)	# outputs addr1 - 3
+				addr = 'addr' + str(x)									# outputs addr1, addr2, addr3
 				if not packet.fields.has_key(addr):
 					return
-				addr = packet.fields[addr]
-				bssid = getBSSID(packet)
-				if not bssid:
-					return
-				if bssid and not bssid in self.BSSIDToSSIDMap:
-					self.BSSIDToSSIDMap[bssid] = bssid
-					self.OrphanedBSSIDs.append(bssid)
-					self.KnownNetworks[bssid] = eapeak.networks.WirelessNetwork(UNKNOWN_SSID_NAME)
-					self.KnownNetworks[bssid].addBSSID(bssid)
-				network = self.KnownNetworks[self.BSSIDToSSIDMap[bssid]]				# objects should be returned as pointers, network to client should affect the client object as still in the BSSIDMap
-				bssid = getBSSID(packet)
-				client_mac = getSource(packet)
-				from_AP = False
-				if client_mac == bssid:
-					client_mac = getDestination(packet)
-					from_AP = True
-				if not bssid or not client_mac:
-					return # something went wrong
-				if network.hasClient(client_mac):
-					client = network.getClient(client_mac)
-				else:
-					client = eapeak.clients.WirelessClient(bssid, client_mac)
-				if from_AP:
-					network.addEapType(eaptype)
-				elif not eaptype in [1, 3]:
-					client.addEapType(eaptype)
-				elif eaptype == 3:	# this parses NAKs and attempts to harvest the desired EAP types, RFC 3748
-					if packet.getlayer('EAP').payload:
-						desiredTypes = []
-						tmpdata = str(packet.getlayer('EAP').payload)
-						for byte in tmpdata:
-							desiredTypes.append(unpack('B', byte)[0])
-						client.addDesiredEapTypes(desiredTypes)
-						del tmpdata
-				if eaptype == 1 and fields['code'] == 2 and 'identity' in fields:
+			bssid = getBSSID(packet)
+			if not bssid:
+				return
+			if bssid and not bssid in self.BSSIDToSSIDMap:
+				self.BSSIDToSSIDMap[bssid] = bssid
+				self.OrphanedBSSIDs.append(bssid)
+				self.KnownNetworks[bssid] = eapeak.networks.WirelessNetwork(UNKNOWN_SSID_NAME)
+				self.KnownNetworks[bssid].addBSSID(bssid)
+			network = self.KnownNetworks[self.BSSIDToSSIDMap[bssid]]				# objects should be returned as pointers, network to client should affect the client object as still in the BSSIDMap
+			bssid = getBSSID(packet)
+			client_mac = getSource(packet)
+			from_AP = False
+			if client_mac == bssid:
+				client_mac = getDestination(packet)
+				from_AP = True
+			if not bssid or not client_mac:
+				return																# something went wrong
+			if network.hasClient(client_mac):
+				client = network.getClient(client_mac)
+			else:
+				client = eapeak.clients.WirelessClient(bssid, client_mac)
+			if from_AP:
+				network.addEapType(eaptype)
+			elif eaptype > 4:
+				client.addEapType(eaptype)
+			elif eaptype == 3 and fields['code'] == 2:								# this parses NAKs and attempts to harvest the desired EAP types, RFC 3748
+				if 'eap_types' in fields:
+					client.addDesiredEapTypes(fields['eap_types'])
+					
+			if from_AP:													# from here on we look for things based on whether it's to or from the AP
+				if packet.haslayer('LEAP'):
+					leap_fields = packet.getlayer('EAP').payload.fields
+					if 'data' in leap_fields and len(leap_fields['data']) == 8:
+						client.addMSChapInfo(17, challenge = leap_fields['data'], identity = leap_fields['name'])
+					del leap_fields
+			else:
+				if eaptype == 1 and 'identity' in fields:
 					client.addIdentity(1, fields['identity'])
-				if packet.haslayer('LEAP') and 'name' in packet.getlayer('EAP').payload.fields:
-					identity = packet.getlayer('EAP').payload.fields['name']
-					if identity:
-						client.addIdentity(17, identity)
-				network.addClient(client)
+				if packet.haslayer('LEAP'):
+					leap_fields = packet.getlayer('EAP').payload.fields
+					if 'name' in leap_fields:
+						identity = leap_fields['name']
+						if identity:
+							client.addIdentity(17, identity)
+					if 'data' in leap_fields and len(leap_fields['data']) == 24:
+						client.addMSChapInfo(17, response = leap_fields['data'], identity = leap_fields['name'])
+					del leap_fields
+			network.addClient(client)
 			shouldStop = True
 		if shouldStop:
 			return
@@ -308,7 +317,7 @@ class EapeakParsingEngine:
 			c = self.screen.getch()
 			if self.curses_detailed and c != ord('i'):
 				continue
-			if c == ord('u'):
+			if c in [117, 65]:# 117 = ord('u')
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 				if self.user_marker_pos == 1 and self.curses_row_offset == 0:
 					# ceiling
@@ -318,8 +327,7 @@ class EapeakParsingEngine:
 				else:
 					self.user_marker_pos -= 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-				
-			elif c == ord('d'):
+			elif c in [100, 66]:# 100 = ord('d')
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 				if self.user_marker_pos + self.curses_row_offset == len(self.KnownNetworks):
 					# floor
@@ -329,8 +337,7 @@ class EapeakParsingEngine:
 				else:
 					self.user_marker_pos += 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-				
-			elif c == ord('i'):
+			elif c == [105, 10]:#105 = ord('i')
 				if self.curses_detailed:
 					self.curses_detailed = None
 					self.screen.erase()
@@ -382,6 +389,10 @@ class EapeakParsingEngine:
 						client = clients[i]
 						messages.append([3, 'Client #' + str(i + 1) ])
 						messages.append([3, 'MAC: ' + client.mac])
+						if client.desiredEapTypes:
+							messages.append([3, 'EAP Types: ' + ",".join([EAP_TYPES[y] for y in client.desiredEapTypes])])
+						else:
+							messages.append([3, 'EAP Types: [ UNKNOWN ]'])
 						if client.identities:
 							messages.append([3, 'Identities:'])
 						for ident, eap in client.identities.items():
@@ -425,7 +436,7 @@ class EapeakParsingEngine:
 		curses.endwin()
 		self.screen = curses.initscr()
 		size = self.screen.getmaxyx()
-		if size[0] < 25 or size[1] < 99:
+		if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
 			curses.endwin()
 			sys.exit(2)
 		self.screen.border(0)

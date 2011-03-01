@@ -3,7 +3,7 @@
 	clients.py
 	Provided by Package: eapeak
 	
-	Author: Spencer McIntyre <smcintyre@securestate.com>
+	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
 	
 	Copyright 2011 SecureState
 	
@@ -24,9 +24,10 @@
 		
 """
 
-#from binascii import hexlify
+import pdb
 
 from scapy.layers.l2 import eap_types as EAP_TYPES
+from binascii import hexlify
 EAP_TYPES[0] = 'NONE'
 
 class WirelessClient:
@@ -37,21 +38,40 @@ class WirelessClient:
 	def __init__(self, bssid, mac):
 		self.bssid = bssid
 		self.mac = mac
-		self.identities = {}			# eaptypes keyed by identities (probably won't have more than one or two, but the identities are unique, allowing for multiple usernames)
+		self.identities = {}											# eaptypes keyed by identities (probably won't have more than one or two, but the identities are unique, allowing for multiple usernames)
 		self.eapTypes = []
-		self.desiredEapTypes = []		# this isn't used yet, but it's here for the future, it's populated when a NAK is found
-		self.datastore = {}				# I love metasploit
+		self.desiredEapTypes = []										# this isn't used yet, but it's here for the future, it's populated when a NAK is found
+		self.datastore = {}												# I love metasploit
+		self.mschap = []												# holds respObj dictionaries, keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
 	
 	def addEapType(self, eapType):
-		if eapType not in self.eapTypes and eapType not in [1, 3]:
+		if eapType not in self.eapTypes and eapType > 4:
 			self.eapTypes.append(eapType)
 			
 	def addDesiredEapTypes(self, eapTypes):
-		self.desiredEapTypes.extend(eapTypes)
+		for eap in eapTypes:
+			if not eap in self.desiredEapTypes and eap > 4:
+				self.desiredEapTypes.append(eap)
 
 	def addIdentity(self, eaptype, identity):
 		if not identity in self.identities.keys() and identity:
 			self.identities[identity] = eaptype
+			
+	def addMSChapInfo(self, eaptype, challenge = None, response = None, identity = None):
+		if challenge:							
+			challenge = hexlify(challenge)
+			challenge = ":".join([challenge[y:y+2] for y in range(0, len(challenge), 2)])
+			self.mschap.append({'t':eaptype, 'c':challenge, 'i':identity})
+		if response and len(self.mschap):								# we're adding a response string, make sure we have at least one challenge string
+			response = hexlify(response)
+			response = ":".join([response[y:y+2] for y in range(0, len(response), 2)])
+			respObj = self.mschap[len(self.mschap) - 1]					# get the last response dictionary object
+			if identity and identity != respObj['i']:					# we have a supplied identity but they don't match
+				return 1
+			if not 'r' in respObj:										# make sure we don't over write one (that would be bad)
+				respObj['r'] = response
+			else:
+				return 2												# we seem to have received 2 response strings without a challenge in between
 
 	def show(self, tabs = 0):
 		output = ('\t' * tabs) + 'MAC: ' + self.mac + '\n'
@@ -67,4 +87,14 @@ class WirelessClient:
 					output += ('\t' * tabs) + '\t' + EAP_TYPES[eapType] + '\n'
 				else:
 					output += ('\t' * tabs) + '\tEAP Code: ' + str(eapType) + '\n'
+		if self.mschap:
+			output += ('\t' * tabs) + 'MS Chap Challenge & Responses:\n'
+			for respObj in self.mschap:
+				if not 'r' in respObj:									# no response? useless
+					continue
+				output += ('\t' * tabs) + '\tEAP Type: ' + EAP_TYPES[respObj['t']]
+				if respObj['i']:
+					output += ', Identity: ' + respObj['i']
+				output += '\n'
+				output += ('\t' * tabs) + '\t\tC: ' + respObj['c'] + '\n' + ('\t' * tabs) + '\t\tR: ' + respObj['r'] + '\n'
 		return output

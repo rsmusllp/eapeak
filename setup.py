@@ -4,7 +4,7 @@
 	-*- coding: utf-8 -*-
 	setup.py
 	
-	Author: Spencer McIntyre <smcintyre@securestate.com>
+	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
 	
 	Copyright 2011 SecureState
 	
@@ -30,7 +30,7 @@ from os import listdir
 
 setup(
 	name = 'EAPeak',
-	version = '0.0.9',
+	version = '0.0.10',
 	description = 'EAPeak Wireless Analysis Tool',
 	
 	# Author

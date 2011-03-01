@@ -4,7 +4,7 @@
 	-*- coding: utf-8 -*-
 	eapeak
 	
-	Author: Spencer McIntyre <smcintyre@securestate.com>
+	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
 	
 	Copyright 2011 SecureState
 	
@@ -27,7 +27,7 @@
 
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '9'
+__version_build__ = '10'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -102,6 +102,16 @@ def main():
 	if capture_live and os.getuid():
 		print 'Error: You must be root when using live mode.'
 		return 1
+	print """
+ ________ 
+< eapeak >
+ -------- 
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\\/\\
+                ||----w |
+                ||     ||
+"""
 	print 'Welcome To EAPeak\nVersion: ' + __version__ + '\n'
 	
 	# adjust the scapy logs to make them quite, a hat tip to Philippe Biondi for setting it up so nicely
@@ -124,13 +134,16 @@ def main():
 			
 		thread.start_new_thread(eapeakParser.cursesInteractionHandler, () )
 		thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, () )
-		try:
-			sniff(iface = interface, store = 0, prn = lambda packet: eapeakParser.parseLiveCapture(packet) )
-		except KeyboardInterrupt:
-			pass
-		except socketError:
-			print 'Invalid Interface'
-			return 0
+		while True:
+			try:
+				sniff(iface = interface, store = 0, prn = lambda packet: eapeakParser.parseLiveCapture(packet) )
+			except KeyboardInterrupt:
+				break
+			except socketError:
+				print 'Invalid Interface'
+				return 0
+			except:
+				pass
 		if use_curses:
 			eapeakParser.cleanupCurses()
 		#return 0

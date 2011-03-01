@@ -3,7 +3,7 @@
 	networks.py
 	Provided by Package: eapeak
 	
-	Author: Spencer McIntyre <smcintyre@securestate.com>
+	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
 	
 	Copyright 2011 SecureState
 	
@@ -23,6 +23,7 @@
 	MA 02110-1301, USA.
 		
 """
+
 from scapy.layers.l2 import eap_types as EAP_TYPES
 EAP_TYPES[0] = 'NONE'
 
