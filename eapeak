@@ -24,10 +24,12 @@
 	MA 02110-1301, USA.
 		
 """
-
+DEBUG = True
+if DEBUG:
+	import pdb
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '10'
+__version_build__ = '11'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -152,6 +154,8 @@ def main():
 	
 	if not len(eapeakParser.KnownNetworks):
 		print 'Found No Usable Information\nTry Again With A Larger Capture'
+		if DEBUG:
+			pdb.set_trace()
 		return 0	# we didn't find anything don't continue
 	
 	intro0 = 'EAPeak Summary of Wireless Networks'

@@ -23,7 +23,7 @@
 	MA 02110-1301, USA.
 		
 """
-import pdb
+import pdb	# debugging
 
 import os
 import sys
@@ -205,6 +205,8 @@ class EapeakParsingEngine:
 			self.packets = [ ]
 			
 	def parseWirelessPacket(self, packet):
+		if packet.name == 'RadioTap dummy':
+			packet = packet.payload										# offset it so we start with the Dot11 header
 		shouldStop = False
 		self.packetCounter += 1
 		# this section finds SSIDs in Bacons, I don't like this section, but I do like bacon
@@ -257,7 +259,7 @@ class EapeakParsingEngine:
 			eaptype = fields['type']
 			for x in range(1, 4):
 				addr = 'addr' + str(x)									# outputs addr1, addr2, addr3
-				if not packet.fields.has_key(addr):
+				if not addr in packet.fields:
 					return
 			bssid = getBSSID(packet)
 			if not bssid:
@@ -337,7 +339,7 @@ class EapeakParsingEngine:
 				else:
 					self.user_marker_pos += 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-			elif c == [105, 10]:#105 = ord('i')
+			elif c in [105, 10]:#105 = ord('i')
 				if self.curses_detailed:
 					self.curses_detailed = None
 					self.screen.erase()
@@ -383,20 +385,26 @@ class EapeakParsingEngine:
 				messages.append(CURSES_LINE_BREAK)
 				
 				if network.clients:
-					messages.append([2, 'Clients:'])
+					messages.append([2, 'Clients:         '])
 					clients = network.clients.values()
 					for i in range(0, len(clients)):
 						client = clients[i]
 						messages.append([3, 'Client #' + str(i + 1) ])
 						messages.append([3, 'MAC: ' + client.mac])
 						if client.desiredEapTypes:
-							messages.append([3, 'EAP Types: ' + ",".join([EAP_TYPES[y] for y in client.desiredEapTypes])])
+							messages.append([3, 'EAP Types: ' + ", ".join([EAP_TYPES[y] for y in client.desiredEapTypes])])
 						else:
 							messages.append([3, 'EAP Types: [ UNKNOWN ]'])
 						if client.identities:
 							messages.append([3, 'Identities:'])
 						for ident, eap in client.identities.items():
 							messages.append([4, '(' + EAP_TYPES[eap] + ') ' + ident])
+						if client.mschap:
+							messages.append([3, 'MSChap:'])
+							for value in client.mschap:
+								messages.append([4, 'EAP Type: ' + EAP_TYPES[value['t']] + ', Identity: ' + value['i']])
+								messages.append([4, 'C: ' + value['c']])
+								messages.append([4, 'R: ' + value['r']])
 						messages.append(CURSES_LINE_BREAK)
 					del clients
 				else:
