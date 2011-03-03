@@ -4,7 +4,7 @@
 	-*- coding: utf-8 -*-
 	eapeak
 	
-	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
+	Author: Spencer McIntyre (Steiner) <smcintyre [at] securestate [dot] com>
 	
 	Copyright 2011 SecureState
 	
@@ -22,14 +22,26 @@
 	along with this program; if not, write to the Free Software
 	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 	MA 02110-1301, USA.
+	
+	Shout outs to the SecureState Profiling Team (Thanks Guys!)
+	f8lerror
+	MallocM
+	WhIPsmACK0
+	Zamboni
+	
+	Additional Thanks To:
+	Joshua Wright
+	
+	Zero_Chaos
+	Steve Ocepek
 		
 """
-DEBUG = True
+DEBUG = False
 if DEBUG:
 	import pdb
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '11'
+__version_build__ = '12'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 

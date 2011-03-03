@@ -58,6 +58,9 @@ class WirelessClient:
 			self.identities[identity] = eaptype
 			
 	def addMSChapInfo(self, eaptype, challenge = None, response = None, identity = None):
+		if not identity:
+			identity = 'UNKNOWN'
+
 		if challenge:							
 			challenge = hexlify(challenge)
 			challenge = ":".join([challenge[y:y+2] for y in range(0, len(challenge), 2)])
@@ -65,6 +68,11 @@ class WirelessClient:
 		if response and len(self.mschap):								# we're adding a response string, make sure we have at least one challenge string
 			response = hexlify(response)
 			response = ":".join([response[y:y+2] for y in range(0, len(response), 2)])
+			for value in self.mschap:
+				if not 'r' in value:
+					continue
+				if response == value['r'] and identity == value['i']:	# we already have this particular identity and response so don't store it again, don't check the challenge because chances are it's legit and should be random, resulting in a different response
+					return												# we should only see this in cases that the attacker is supplying the same challenge everytime, *cough* free radius WPE *cough*
 			respObj = self.mschap[len(self.mschap) - 1]					# get the last response dictionary object
 			if identity and identity != respObj['i']:					# we have a supplied identity but they don't match
 				return 1
