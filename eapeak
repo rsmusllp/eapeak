@@ -24,7 +24,9 @@
 	MA 02110-1301, USA.
 	
 	Shout outs to the SecureState Profiling Team (Thanks Guys!)
+	agent0x0
 	f8lerror
+	Jagar
 	MallocM
 	WhIPsmACK0
 	Zamboni
@@ -41,7 +43,7 @@ if DEBUG:
 	import pdb
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '12'
+__version_build__ = '13'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -145,19 +147,22 @@ def main():
 			if errCode:
 				print {1:'Screen must be at least 25x99 for Curses'}[errCode]
 				return 1
+			timeout = 1.5
+		else:
+			timeout = 0
 			
 		thread.start_new_thread(eapeakParser.cursesInteractionHandler, () )
 		thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, () )
 		while True:
 			try:
-				sniff(iface = interface, store = 0, prn = lambda packet: eapeakParser.parseLiveCapture(packet) )
+				sniff(iface = interface, store = 0, prn = lambda packet: eapeakParser.parseLiveCapture(packet), timeout = timeout )
+				if use_curses and not eapeakParser.curses_enabled:
+					break
 			except KeyboardInterrupt:
 				break
 			except socketError:
 				print 'Invalid Interface'
 				return 0
-			except:
-				pass
 		if use_curses:
 			eapeakParser.cleanupCurses()
 		#return 0

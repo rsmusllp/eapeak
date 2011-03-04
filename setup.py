@@ -30,7 +30,7 @@ from os import listdir
 
 setup(
 	name = 'EAPeak',
-	version = '0.0.12',
+	version = '0.0.13',
 	description = 'EAPeak Wireless Analysis Tool',
 	
 	# Author

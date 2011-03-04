@@ -53,10 +53,11 @@ BSSIDPositionMap = { 0:'3', 1:'1', 2:'2', 8:'3', 9:'1', 10:'2' }
 SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
 DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 CURSES_LINE_BREAK = [0, '']
-CURSES_REFRESH_FREQUENCY = 0.25
-CURSES_MIN_X = 99		# minimum screen size
+CURSES_REFRESH_FREQUENCY = 0.10
+CURSES_LOWER_REFRESH_FREQUENCY = 5
+CURSES_MIN_X = 99					# minimum screen size
 CURSES_MIN_Y = 25
-TAB_LENGTH = 4	# in spaces
+TAB_LENGTH = 4						# in spaces
 
 USER_MARKER = '=> '
 USER_MARKER_OFFSET = 8
@@ -134,6 +135,7 @@ class EapeakParsingEngine:
 		self.curses_enabled = False
 		
 	def cleanupCurses(self):
+		if not self.curses_enabled: return
 		self.screen.erase()
 		del self.screen
 		curses.endwin()
@@ -163,6 +165,7 @@ class EapeakParsingEngine:
 		curses.curs_set(0)
 		curses.noecho()
 		self.curses_enabled = True
+		self.curses_lower_refresh_counter = 1
 		#signal.signal(signal.SIGWINCH, self.cursesSigwinchHandler )
 		return 0
 		
@@ -320,29 +323,29 @@ class EapeakParsingEngine:
 	def cursesInteractionHandler(self, garbage = None):
 		while self.curses_enabled:
 			c = self.screen.getch()
-			if self.curses_detailed and c != ord('i'):
+			if self.curses_detailed and not c in [105, 10]:
 				continue
-			if c in [117, 65]:# 117 = ord('u')
+			if c in [117, 65]:		# 117 = ord('u')
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 				if self.user_marker_pos == 1 and self.curses_row_offset == 0:
-					# ceiling
-					pass
+					pass	# ceiling
 				elif self.user_marker_pos == 1 and self.curses_row_offset:
 					self.curses_row_offset -= 1
+					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 				else:
 					self.user_marker_pos -= 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-			elif c in [100, 66]:# 100 = ord('d')
+			elif c in [100, 66]:	# 100 = ord('d')
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 				if self.user_marker_pos + self.curses_row_offset == len(self.KnownNetworks):
-					# floor
-					pass
-				elif self.user_marker_pos == self.curses_max_rows - 9:
+					pass	# floor
+				elif self.user_marker_pos + USER_MARKER_OFFSET == self.curses_max_rows - 1:
 					self.curses_row_offset += 1
+					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 				else:
 					self.user_marker_pos += 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-			elif c in [105, 10]:#105 = ord('i')
+			elif c in [105, 10]:	# 105 = ord('i')
 				if self.curses_detailed:
 					self.curses_detailed = None
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
@@ -350,20 +353,29 @@ class EapeakParsingEngine:
 				else:
 					self.curses_detailed = self.KnownNetworks.keys()[self.user_marker_pos - 1 + self.curses_row_offset]
 					self.screen.refresh()
+				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+			elif c == 113:			# 113 = ord('q')
+				break
+		self.cleanupCurses()
+		return
 					
 	def cursesScreenDrawHandler(self):
 		while self.curses_enabled:
+			self.screen.refresh()
+			sleep(CURSES_REFRESH_FREQUENCY)
 			messages = []
-			messages.append([1, 'EAPeak Capturing Live'])
-			messages.append([1, 'Found ' + str(len(self.KnownNetworks)) + ' Networks'])
-			messages.append([1, "Processed {:,} Packets".format(self.packetCounter)])
-			messages.append(CURSES_LINE_BREAK)
-			messages.append([1, 'Network Information:'])
-			line = 2
-			for message in messages:
-				self.screen.addstr(line, TAB_LENGTH * message[0], message[1])
-				line += 1
-			messages = []
+			self.screen.addstr(2, 4, 'EAPeak Capturing Live')			# this is all static, so don't use the messages queue
+			self.screen.addstr(3, 4, 'Found ' + str(len(self.KnownNetworks)) + ' Networks')
+			self.screen.addstr(4, 4, "Processed {:,} Packets".format(self.packetCounter))
+			self.screen.addstr(6, 4, 'Network Information:')
+			if self.curses_lower_refresh_counter == CURSES_LOWER_REFRESH_FREQUENCY:
+				self.curses_lower_refresh_counter = 1
+				self.screen.move(7, 0)
+				self.screen.clrtobot()
+			else:
+				self.curses_lower_refresh_counter += 1
+				continue
+			
 			ssids = self.KnownNetworks.keys()
 			if self.curses_detailed and self.curses_detailed in self.KnownNetworks:
 				network = self.KnownNetworks[ self.curses_detailed ]
@@ -414,7 +426,6 @@ class EapeakParsingEngine:
 					del clients
 				else:
 					messages.append([2, 'Clients: [ NONE ]'])
-				self.screen.erase()
 				self.screen.border(0)
 			else:
 				messages.append([2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 1) + 'EAP Types:'])
@@ -423,7 +434,7 @@ class EapeakParsingEngine:
 				else:
 					messages.append([2, '        '])
 				for i in range(self.curses_row_offset, len(ssids)):
-					if len(messages) > self.curses_max_rows - 3:
+					if len(messages) > self.curses_max_rows - 8:
 						messages.append([2, '[ MORE ]'])
 						break
 					network = self.KnownNetworks[ssids[i]]
@@ -440,15 +451,13 @@ class EapeakParsingEngine:
 						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
 				if not len(messages) > self.curses_max_rows - 2:
 					messages.append([2, '        '])
-				self.screen.erase()
 				self.screen.border(0)
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			line = 7
 			for message in messages:
 				self.screen.addstr(line, TAB_LENGTH * message[0], message[1])
 				line += 1
-			self.screen.refresh()
-			sleep(CURSES_REFRESH_FREQUENCY)
+				if line > self.curses_max_rows: break
 	
 	def cursesSigwinchHandler(self, n, frame):
 		curses.endwin()
