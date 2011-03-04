@@ -43,7 +43,7 @@ if DEBUG:
 	import pdb
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '14'
+__version_build__ = '15'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -56,6 +56,7 @@ def main():
 	import thread
 	import logging
 	import argparse
+	from select import error as select_error
 	try:
 		import curses
 		curses_enabled = True
@@ -163,6 +164,9 @@ def main():
 			except socketError:
 				print 'Invalid Interface'
 				return 0
+			except select_error:
+				if use_curses and not eapeakParser.curses_enabled:
+					break
 		if use_curses:
 			eapeakParser.cleanupCurses()
 		#return 0

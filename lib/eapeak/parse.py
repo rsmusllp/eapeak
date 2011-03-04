@@ -27,7 +27,7 @@ import pdb	# debugging
 
 import os
 import sys
-#import signal
+import signal
 try:
 	import curses
 	CURSES_CAPABLE = True
@@ -147,14 +147,14 @@ class EapeakParsingEngine:
 		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
 		self.curses_detailed = None							# used with curses
 		self.screen = curses.initscr()
+		curses.start_color()
+		curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_WHITE)
 		size = self.screen.getmaxyx()
 		if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
 			curses.endwin()
 			return 1
 		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
 		self.curses_max_columns = size[1] - 2
-		
-		self.screen.scrollok(True)
 		
 		self.screen.border(0)
 		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
@@ -166,7 +166,7 @@ class EapeakParsingEngine:
 		curses.noecho()
 		self.curses_enabled = True
 		self.curses_lower_refresh_counter = 1
-		#signal.signal(signal.SIGWINCH, self.cursesSigwinchHandler )
+		#signal.signal(signal.SIGWINCH, self.cursesSigwinchHandler)
 		return 0
 		
 	def parseLiveCapture(self, packet, quite = True):
@@ -356,28 +356,38 @@ class EapeakParsingEngine:
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 			elif c in [113, 81]:		# 113 = ord('q')
 				self.curses_lower_refresh_counter = 0
-				confirmation = self.screen.subwin(6, 40, (self.curses_max_rows / 2 - 3), (self.curses_max_columns / 2 - 20))
-				confirmation.addstr(2, 11, 'Really Quit? (y/N)')
-				confirmation.clrtobot()
-				confirmation.border(0)
-				confirmation.refresh()
-				confirmation.overlay(self.screen)
-				c = confirmation.getch()
+				subwindow = self.screen.subwin(6, 40, (self.curses_max_rows / 2 - 3), (self.curses_max_columns / 2 - 20))
+				subwindow.addstr(2, 11, 'Really Quit? (y/N)')
+				subwindow.clrtobot()
+				subwindow.border(0)
+				subwindow.refresh()
+				subwindow.overlay(self.screen)
+				c = subwindow.getch()
 				if c in [121, 89]:
 					break
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 			elif c in [104, 72]:		# 113 = ord('q')
 				self.curses_lower_refresh_counter = 0
-				confirmation = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
-				confirmation.addstr(1, 15, 'Help Menu')
-				confirmation.addstr(3, 2, 'i/Enter : Toggle View')
-				confirmation.addstr(4, 2, 'q       : Quit')
-				#confirmation.addstr(5, 2, 'e/E       : Export Users')
-				confirmation.clrtobot()
-				confirmation.border(0)
-				confirmation.refresh()
-				confirmation.overlay(self.screen)
-				c = confirmation.getch()
+				subwindow = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
+				subwindow.addstr(1, 15, 'Help Menu')
+				subwindow.addstr(3, 2, 'i/Enter : Toggle View')
+				subwindow.addstr(4, 2, 'q       : Quit')
+				#subwindow.addstr(5, 2, 'e       : Export Users')
+				subwindow.clrtobot()
+				subwindow.border(0)
+				subwindow.refresh()
+				subwindow.overlay(self.screen)
+				c = subwindow.getch()
+				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+			elif c in [101, 69]:		# 101 = ord('e')
+				self.curses_lower_refresh_counter = 0
+				subwindow = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
+				subwindow.addstr(1, 15, 'Save File As')
+				subwindow.clrtobot()
+				subwindow.border(0)
+				subwindow.refresh()
+				subwindow.overlay(self.screen)
+				c = subwindow.getch()
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 		self.cleanupCurses()
 		return
@@ -388,10 +398,9 @@ class EapeakParsingEngine:
 			if self.curses_lower_refresh_counter == 0:
 				continue
 			self.screen.refresh()
-			messages = []
 			self.screen.addstr(2, 4, 'EAPeak Capturing Live')			# this is all static, so don't use the messages queue
-			self.screen.addstr(3, 4, 'Found ' + str(len(self.KnownNetworks)) + ' Networks')
-			self.screen.addstr(4, 4, "Processed {:,} Packets".format(self.packetCounter))
+			self.screen.addnstr(3, 4, 'Found ' + str(len(self.KnownNetworks)) + ' Networks', CURSES_MIN_X)
+			self.screen.addnstr(4, 4, "Processed {:,} Packets".format(self.packetCounter), CURSES_MIN_X)
 			self.screen.addstr(6, 4, 'Network Information:')
 			if self.curses_lower_refresh_counter == CURSES_LOWER_REFRESH_FREQUENCY:
 				self.curses_lower_refresh_counter = 1
@@ -400,7 +409,8 @@ class EapeakParsingEngine:
 			else:
 				self.curses_lower_refresh_counter += 1
 				continue
-			
+				
+			messages = []
 			ssids = self.KnownNetworks.keys()
 			if self.curses_detailed and self.curses_detailed in self.KnownNetworks:
 				network = self.KnownNetworks[ self.curses_detailed ]
@@ -453,7 +463,7 @@ class EapeakParsingEngine:
 					messages.append([2, 'Clients: [ NONE ]'])
 				self.screen.border(0)
 			else:
-				messages.append([2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 1) + 'EAP Types:'])
+				messages.append([2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 2) + 'EAP Types:'])
 				if self.curses_row_offset:
 					messages.append([2, '[ MORE ]'])
 				else:
@@ -471,7 +481,7 @@ class EapeakParsingEngine:
 							else:
 								tmpEapTypes.append(str(eType))
 					if i < 10:
-						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 4) + ", ".join(tmpEapTypes)])
+						messages.append([2, str(i + 1) + ')  ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
 					else:
 						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
 				if not len(messages) > self.curses_max_rows - 2:
@@ -480,21 +490,35 @@ class EapeakParsingEngine:
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			line = 7
 			for message in messages:
-				self.screen.addstr(line, TAB_LENGTH * message[0], message[1])
+				self.screen.addnstr(line, TAB_LENGTH * message[0], message[1], self.curses_max_columns - TAB_LENGTH * message[0])
 				line += 1
 				if line > self.curses_max_rows: break
 	
 	def cursesSigwinchHandler(self, n, frame):
+		if not self.curses_enabled: return
+		self.curses_lower_refresh_counter = 0
+		sleep(CURSES_REFRESH_FREQUENCY)
 		curses.endwin()
+		
+		self.user_marker_pos = 1							# used with curses
+		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
+		self.curses_detailed = None							# used with curses
 		self.screen = curses.initscr()
+		curses.start_color()
+		curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_WHITE)
 		size = self.screen.getmaxyx()
 		if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
-			curses.endwin()
-			sys.exit(2)
+			self.cleanupCurses()
+			return
+		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
+		self.curses_max_columns = size[1] - 2
+		
 		self.screen.border(0)
 		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
 		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
 		self.screen.addstr(4, TAB_LENGTH, 'Processed 0 Packets')
 		self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 		self.screen.refresh()
+		curses.curs_set(0)
+		self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 		return 0
