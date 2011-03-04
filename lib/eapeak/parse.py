@@ -325,7 +325,7 @@ class EapeakParsingEngine:
 			c = self.screen.getch()
 			if self.curses_detailed and not c in [105, 10]:
 				continue
-			if c in [117, 65]:		# 117 = ord('u')
+			if c in [65, 117, 85]:		# 117 = ord('u')
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 				if self.user_marker_pos == 1 and self.curses_row_offset == 0:
 					pass	# ceiling
@@ -335,7 +335,7 @@ class EapeakParsingEngine:
 				else:
 					self.user_marker_pos -= 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-			elif c in [100, 66]:	# 100 = ord('d')
+			elif c in [66, 100, 68]:	# 100 = ord('d')
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 				if self.user_marker_pos + self.curses_row_offset == len(self.KnownNetworks):
 					pass	# floor
@@ -345,7 +345,7 @@ class EapeakParsingEngine:
 				else:
 					self.user_marker_pos += 1
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-			elif c in [105, 10]:	# 105 = ord('i')
+			elif c in [10, 105, 73]:	# 105 = ord('i')
 				if self.curses_detailed:
 					self.curses_detailed = None
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
@@ -354,15 +354,40 @@ class EapeakParsingEngine:
 					self.curses_detailed = self.KnownNetworks.keys()[self.user_marker_pos - 1 + self.curses_row_offset]
 					self.screen.refresh()
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
-			elif c == 113:			# 113 = ord('q')
-				break
+			elif c in [113, 81]:		# 113 = ord('q')
+				self.curses_lower_refresh_counter = 0
+				confirmation = self.screen.subwin(6, 40, (self.curses_max_rows / 2 - 3), (self.curses_max_columns / 2 - 20))
+				confirmation.addstr(2, 11, 'Really Quit? (y/N)')
+				confirmation.clrtobot()
+				confirmation.border(0)
+				confirmation.refresh()
+				confirmation.overlay(self.screen)
+				c = confirmation.getch()
+				if c in [121, 89]:
+					break
+				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+			elif c in [104, 72]:		# 113 = ord('q')
+				self.curses_lower_refresh_counter = 0
+				confirmation = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
+				confirmation.addstr(1, 15, 'Help Menu')
+				confirmation.addstr(3, 2, 'i/Enter : Toggle View')
+				confirmation.addstr(4, 2, 'q       : Quit')
+				#confirmation.addstr(5, 2, 'e/E       : Export Users')
+				confirmation.clrtobot()
+				confirmation.border(0)
+				confirmation.refresh()
+				confirmation.overlay(self.screen)
+				c = confirmation.getch()
+				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 		self.cleanupCurses()
 		return
 					
 	def cursesScreenDrawHandler(self):
 		while self.curses_enabled:
-			self.screen.refresh()
 			sleep(CURSES_REFRESH_FREQUENCY)
+			if self.curses_lower_refresh_counter == 0:
+				continue
+			self.screen.refresh()
 			messages = []
 			self.screen.addstr(2, 4, 'EAPeak Capturing Live')			# this is all static, so don't use the messages queue
 			self.screen.addstr(3, 4, 'Found ' + str(len(self.KnownNetworks)) + ' Networks')
