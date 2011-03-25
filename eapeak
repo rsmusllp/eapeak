@@ -38,12 +38,13 @@
 	Steve Ocepek
 		
 """
-DEBUG = False
+
+DEBUG = True
 if DEBUG:
 	import pdb
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '15'
+__version_build__ = '16'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -57,6 +58,8 @@ def main():
 	import logging
 	import argparse
 	from select import error as select_error
+	from xml.dom import minidom
+	from xml.etree import ElementTree
 	try:
 		import curses
 		curses_enabled = True
@@ -100,7 +103,7 @@ def main():
 	parser.add_argument('-i', '--iface', dest = 'interface', action = 'store', help = 'interface to use for live capture')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	results = parser.parse_args()
-	pcapFiles = results.pcaps
+	storedFiles = results.pcaps
 	targetSSIDs = results.target_ssids
 	capture_live = results.capture_live
 	interface = results.interface
@@ -108,7 +111,7 @@ def main():
 		use_curses = results.use_curses
 	else:
 		use_curses = False
-	if not capture_live and not pcapFiles:
+	if not capture_live and not storedFiles:
 		parser.print_help()
 		return 0
 	del results, parser
@@ -137,10 +140,22 @@ def main():
 	
 	eapeakParser = EapeakParsingEngine(targetSSIDs)
 	
+	xmlFiles = []
+	pcapFiles = []
+	for filename in storedFiles:
+		if filename.split('.')[-1] == 'xml':
+			if not filename in xmlFiles:
+				xmlFiles.append(filename)
+		elif 'cap' in filename.split('.')[-1]:
+			if not filename in pcapFiles:
+				pcapFiles.append(filename)
+	
 	if pcapFiles:
 		eapeakParser.parsePCapFiles(pcapFiles, False)
 		print ''
-	
+	if xmlFiles:
+		eapeakParser.parseXMLFiles(xmlFiles)
+			
 	if capture_live:
 		print 'Begining Live Capture...'
 		if use_curses:
@@ -190,9 +205,16 @@ def main():
 	
 	networks = eapeakParser.KnownNetworks.keys()
 	networks.sort()
-	for network in networks:
-		print eapeakParser.KnownNetworks[network].show()
-		print ''
+	if not DEBUG:
+		for network in networks:
+			print eapeakParser.KnownNetworks[network].show()
+			print ''
+	else:
+		eapeakXML = ElementTree.Element('detection-run')
+		eapeakXML.set('eapeak-version', __version__) 
+		for network in networks:
+			eapeakXML.append(eapeakParser.KnownNetworks[network].getXML())
+		print minidom.parseString(ElementTree.tostring( eapeakXML )).toprettyxml()
 
 	return 0
 

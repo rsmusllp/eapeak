@@ -27,6 +27,19 @@
 from scapy.layers.l2 import eap_types as EAP_TYPES
 EAP_TYPES[0] = 'NONE'
 
+def XMLEscape(string):
+	string = str(string)
+	escapes = {
+			'"' : '&quot;',
+			'\'': '&apos;',
+			'<': '&lt;',
+			'>': '&gt;',
+			'&': '&amp;'
+		}
+	for bad, good in escapes.items():
+		string = string.replace(bad, good)
+	return string
+
 class WirelessNetwork:
 	ssid = ''	# this is unique
 	
@@ -85,3 +98,20 @@ class WirelessNetwork:
 		
 	def updateSSID(self, ssid):
 		self.ssid = ssid
+
+	def getXML(self):
+		from xml.etree import ElementTree
+		root = ElementTree.Element('wireless-network')
+		for bssid in self.bssids:
+			ElementTree.SubElement(root, 'BSSID').text = bssid
+		tmp = ElementTree.SubElement(root, 'SSID')
+		ElementTree.SubElement(tmp, 'type').text = 'Beacon'
+		essid = ElementTree.SubElement(tmp, 'essid')
+		essid.set('cloaked', 'false')
+		essid.text = XMLEscape(self.ssid)
+		if self.eapTypes:
+			ElementTree.SubElement(tmp, 'eap-types').text = ",".join([str(i) for i in self.eapTypes])
+
+		for client in self.clients.values():
+			root.append(client.getXML())
+		return root

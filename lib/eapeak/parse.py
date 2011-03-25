@@ -34,6 +34,7 @@ try:
 except ImportError:
 	CURSES_CAPABLE = False
 from struct import unpack
+from binascii import unhexlify
 from time import sleep
 
 from scapy.utils import rdpcap
@@ -210,6 +211,72 @@ class EapeakParsingEngine:
 				sys.stdout.flush()
 			self.packets = [ ]
 			
+	def parseXMLFiles(self, xmlFiles):
+		from xml.etree import ElementTree
+		for xmlfile in xmlFiles:
+			e = ElementTree.parse(xmlfile)
+			for network in e.findall('wireless-network'):
+				ssid = network.find('SSID')
+				if not isinstance(ssid, ElementTree.Element) or not isinstance(ssid.find('type'), ElementTree.Element):
+					continue
+				elif ssid.find('type').text.strip() != 'Beacon':
+					continue
+				ssid = ssid.find('essid')
+				if isinstance(ssid, ElementTree.Element):
+					ssid = ssid.text.strip()
+					newNetwork = eapeak.networks.WirelessNetwork(ssid)
+				else:
+					continue
+				for bssid in network.findall('BSSID'):
+					bssid = bssid.text.strip()
+					newNetwork.addBSSID(bssid)
+					if ssid != UNKNOWN_SSID_NAME:
+						self.BSSIDToSSIDMap[bssid] = ssid
+					else:
+						self.BSSIDToSSIDMap[bssid] = bssid
+						self.OrphanedBSSIDs.append(bssid)
+				eaptypes = network.find('SSID').find('eap-types')
+				if isinstance(eaptypes, ElementTree.Element):
+					for eaptype in eaptypes.text.strip().split(','):
+						if eaptype.isdigit():
+							newNetwork.addEapType(int(eaptype))
+							
+				for client in network.findall('wireless-client'):
+					bssid = client.find('client-bssid')
+					if isinstance(bssid, ElementTree.Element):
+						bssid = bssid.text.strip()
+					else:
+						continue
+					client_mac = client.find('client-mac').text.strip()
+					newClient = eapeak.clients.WirelessClient(bssid, client_mac)
+					eaptypes = client.find('eap-types')
+					if isinstance(eaptypes, ElementTree.Element):
+						for eaptype in eaptypes.text.strip().split(','):
+							if eaptype.isdigit():
+								newClient.addEapType(int(eaptype))
+					identities = client.findall('identity') or []
+					for identity in identities:
+						newClient.addIdentity(identity.get('eap-type'), identity.text.strip())
+					mschaps = client.findall('mschap') or []
+					for mschap in mschaps:
+						newClient.addMSChapInfo(
+							int(mschap.get('eap-type')),
+							unhexlify(mschap.find('challenge').text.strip().replace(':', '')),
+							unhexlify(mschap.find('response').text.strip().replace(':', '')),
+							mschap.get('identity')
+						)
+					newNetwork.addClient(newClient)
+				if ssid != UNKNOWN_SSID_NAME:
+					self.KnownNetworks[ssid] = newNetwork
+				else:
+					self.KnownNetworks[bssid] = newNetwork
+				"""
+				If ssid == UNKNOWN_SSID_NAME and there are more than 1 bssids then there will be an issue with where to store the single network object.
+				If there is a client and the network is added to KnownNetworks each time this occurs then the client will appear to under each network but only
+				be associated with the single BSSID.  This problem needs to be addressed and throughly tested.
+				"""
+					
+						
 	def parseWirelessPacket(self, packet):
 		if packet.name == 'RadioTap dummy':
 			packet = packet.payload										# offset it so we start with the Dot11 header
@@ -275,7 +342,7 @@ class EapeakParsingEngine:
 				self.OrphanedBSSIDs.append(bssid)
 				self.KnownNetworks[bssid] = eapeak.networks.WirelessNetwork(UNKNOWN_SSID_NAME)
 				self.KnownNetworks[bssid].addBSSID(bssid)
-			network = self.KnownNetworks[self.BSSIDToSSIDMap[bssid]]				# objects should be returned as pointers, network to client should affect the client object as still in the BSSIDMap
+			network = self.KnownNetworks[self.BSSIDToSSIDMap[bssid]]				# objects should be returned, network to client should affect the client object as still in the BSSIDMap
 			bssid = getBSSID(packet)
 			client_mac = getSource(packet)
 			from_AP = False

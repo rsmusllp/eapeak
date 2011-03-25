@@ -30,6 +30,19 @@ from scapy.layers.l2 import eap_types as EAP_TYPES
 from binascii import hexlify
 EAP_TYPES[0] = 'NONE'
 
+def XMLEscape(string):
+	string = str(string)
+	escapes = {
+			'"' : '&quot;',
+			'\'': '&apos;',
+			'<': '&lt;',
+			'>': '&gt;',
+			'&': '&amp;'
+		}
+	for bad, good in escapes.items():
+		string = string.replace(bad, good)
+	return string
+
 class WirelessClient:
 	authenticated = False
 	mac = ''	# this is unique
@@ -58,6 +71,9 @@ class WirelessClient:
 			self.identities[identity] = eaptype
 			
 	def addMSChapInfo(self, eaptype, challenge = None, response = None, identity = None):
+		"""
+		Challenge and Response strings are packed binary, NOT 00:00:00:00:00:00:00
+		"""
 		if not identity:
 			identity = 'UNKNOWN'
 
@@ -106,3 +122,24 @@ class WirelessClient:
 				output += '\n'
 				output += ('\t' * tabs) + '\t\tC: ' + respObj['c'] + '\n' + ('\t' * tabs) + '\t\tR: ' + respObj['r'] + '\n'
 		return output
+
+	def getXML(self):
+		from xml.etree import ElementTree
+		root = ElementTree.Element('wireless-client')
+		ElementTree.SubElement(root, 'client-mac').text = self.mac
+		ElementTree.SubElement(root, 'client-bssid').text = self.bssid
+		ElementTree.SubElement(root, 'eap-types').text = ",".join([str(i) for i in self.eapTypes])
+		
+		for identity, eaptype in self.identities.items():
+			tmp = ElementTree.SubElement(root, 'identity')
+			tmp.set('eap-type', str(eaptype))
+			tmp.text = XMLEscape(identity)
+			
+		for respObj in self.mschap:
+			if not 'r' in respObj: continue
+			tmp = ElementTree.SubElement(root, 'mschap')
+			tmp.set('eap-type', str(respObj['t']))
+			tmp.set('identity', XMLEscape(respObj['i']))
+			ElementTree.SubElement(tmp, 'challenge').text = respObj['c']
+			ElementTree.SubElement(tmp, 'response').text = respObj['r']
+		return root
