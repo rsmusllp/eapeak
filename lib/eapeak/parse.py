@@ -24,7 +24,7 @@
 		
 """
 
-__version__ = '0.0.18'
+__version__ = '0.0.19'
 
 import os
 import sys
@@ -59,7 +59,7 @@ SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
 DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 CURSES_LINE_BREAK = [0, '']
 CURSES_REFRESH_FREQUENCY = 0.10
-CURSES_LOWER_REFRESH_FREQUENCY = 5
+CURSES_LOWER_REFRESH_FREQUENCY = 5	# frequency of CURSES_REFRESH_FREQUENCY
 CURSES_MIN_X = 99					# minimum screen size
 CURSES_MIN_Y = 25
 TAB_LENGTH = 4						# in spaces
@@ -150,6 +150,7 @@ class EapeakParsingEngine:
 	def initCurses(self):
 		self.user_marker_pos = 1							# used with curses
 		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
+		self.curses_row_offset_store = 0					# used for storing the row offset when switching from detailed to non-detailed view modes
 		self.curses_detailed = None							# used with curses
 		self.screen = curses.initscr()
 		curses.start_color()
@@ -195,7 +196,7 @@ class EapeakParsingEngine:
 				continue
 			elif not os.access(pcap, os.R_OK):
 				if not quite:
-					sys.stdout.write("Skipping FIle {0}: Permissions Issue\n".format(pcap))
+					sys.stdout.write("Skipping File {0}: Permissions Issue\n".format(pcap))
 					sys.stdout.flush()
 				continue
 			try:
@@ -228,7 +229,7 @@ class EapeakParsingEngine:
 				continue
 			elif not os.access(xmlfile, os.R_OK):
 				if not quite:
-					print "Skipping FIle {0}: Permissions Issue".format(xmlfile)
+					print "Skipping File {0}: Permissions Issue".format(xmlfile)
 				continue
 			e = ElementTree.parse(xmlfile)
 			for network in e.findall('wireless-network'):
@@ -395,7 +396,9 @@ class EapeakParsingEngine:
 				client.addEapType(eaptype)
 			elif eaptype == 3 and fields['code'] == 2:								# this parses NAKs and attempts to harvest the desired EAP types, RFC 3748
 				if 'eap_types' in fields:
-					client.addDesiredEapTypes(fields['eap_types'])
+					for eap in fields['eap_types']:
+						client.addEapType(eap)
+					del eap
 					
 			if from_AP:													# from here on we look for things based on whether it's to or from the AP
 				if packet.haslayer('LEAP'):
@@ -424,29 +427,39 @@ class EapeakParsingEngine:
 	def cursesInteractionHandler(self, garbage = None):
 		while self.curses_enabled:
 			c = self.screen.getch()
-			if self.curses_detailed and not c in [105, 10]:
-				continue
 			if c in [65, 117, 85]:		# 117 = ord('u')
-				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
-				if self.user_marker_pos == 1 and self.curses_row_offset == 0:
-					pass	# ceiling
-				elif self.user_marker_pos == 1 and self.curses_row_offset:
-					self.curses_row_offset -= 1
-					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+				if self.curses_detailed:
+					if self.curses_row_offset > 0:
+						self.curses_row_offset -= 1
+						self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
 				else:
-					self.user_marker_pos -= 1
-				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
+					if self.user_marker_pos == 1 and self.curses_row_offset == 0:
+						pass	# ceiling
+					elif self.user_marker_pos == 1 and self.curses_row_offset:
+						self.curses_row_offset -= 1
+						self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+					else:
+						self.user_marker_pos -= 1
+					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			elif c in [66, 100, 68]:	# 100 = ord('d')
-				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
-				if self.user_marker_pos + self.curses_row_offset == len(self.KnownNetworks):
-					pass	# floor
-				elif self.user_marker_pos + USER_MARKER_OFFSET == self.curses_max_rows - 1:
+				if self.curses_detailed:
 					self.curses_row_offset += 1
-					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
 				else:
-					self.user_marker_pos += 1
-				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
+					if self.user_marker_pos + self.curses_row_offset == len(self.KnownNetworks):
+						pass	# floor
+					elif self.user_marker_pos + USER_MARKER_OFFSET == self.curses_max_rows - 1:
+						self.curses_row_offset += 1
+						self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+					else:
+						self.user_marker_pos += 1
+					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			elif c in [10, 105, 73]:	# 105 = ord('i')
+				tmp = self.curses_row_offset_store
+				self.curses_row_offset_store = self.curses_row_offset
+				self.curses_row_offset = tmp
 				if self.curses_detailed:
 					self.curses_detailed = None
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
@@ -454,7 +467,7 @@ class EapeakParsingEngine:
 				else:
 					self.curses_detailed = self.KnownNetworks.keys()[self.user_marker_pos - 1 + self.curses_row_offset]
 					self.screen.refresh()
-				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
 			elif c in [113, 81]:		# 113 = ord('q')
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(6, 40, (self.curses_max_rows / 2 - 3), (self.curses_max_columns / 2 - 20))
@@ -551,8 +564,8 @@ class EapeakParsingEngine:
 						client = clients[i]
 						messages.append([3, 'Client #' + str(i + 1) ])
 						messages.append([3, 'MAC: ' + client.mac])
-						if client.desiredEapTypes:
-							messages.append([3, 'EAP Types: ' + ", ".join([EAP_TYPES[y] for y in client.desiredEapTypes])])
+						if client.eapTypes:
+							messages.append([3, 'EAP Types: ' + ", ".join([EAP_TYPES[y] for y in client.eapTypes])])
 						else:
 							messages.append([3, 'EAP Types: [ UNKNOWN ]'])
 						if client.identities:
@@ -567,9 +580,18 @@ class EapeakParsingEngine:
 								messages.append([4, 'C: ' + value['c']])
 								messages.append([4, 'R: ' + value['r']])
 						messages.append(CURSES_LINE_BREAK)
+					messages.pop()	# trash the last trailing line break
 					del clients
 				else:
 					messages.append([2, 'Clients: [ NONE ]'])
+				max_offset = len(messages) - (self.curses_max_rows - 7)
+				if max_offset < 0:
+					max_offset = 0
+				if self.curses_row_offset > max_offset:
+					self.curses_row_offset = max_offset
+				del max_offset
+				for i in range(0, self.curses_row_offset):
+					messages.pop(0)
 				self.screen.border(0)
 			else:
 				messages.append([2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 2) + 'EAP Types:'])

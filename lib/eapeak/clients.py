@@ -51,18 +51,12 @@ class WirelessClient:
 		self.mac = mac
 		self.identities = {}											# eaptypes keyed by identities (probably won't have more than one or two, but the identities are unique, allowing for multiple usernames)
 		self.eapTypes = []
-		self.desiredEapTypes = []										# this isn't used yet, but it's here for the future, it's populated when a NAK is found
 		self.datastore = {}												# I love metasploit
 		self.mschap = []												# holds respObj dictionaries, keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
 	
 	def addEapType(self, eapType):
 		if eapType not in self.eapTypes and eapType > 4:
 			self.eapTypes.append(eapType)
-			
-	def addDesiredEapTypes(self, eapTypes):
-		for eap in eapTypes:
-			if not eap in self.desiredEapTypes and eap > 4:
-				self.desiredEapTypes.append(eap)
 
 	def addIdentity(self, eaptype, identity):
 		if not identity in self.identities.keys() and identity:
