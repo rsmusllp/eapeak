@@ -41,7 +41,7 @@
 
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '17'
+__version_build__ = '18'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -89,13 +89,13 @@ def main():
 		sys.path.append(os.getcwd() + os.sep + 'lib')
 		from eapeak.parse import EapeakParsingEngine
 	
-	parser = argparse.ArgumentParser(description = 'Analyze Wireless PCaps', conflict_handler='resolve')
+	parser = argparse.ArgumentParser(description = 'EAPeak: Analyze Wireless PCaps', conflict_handler='resolve')
 	parser.add_argument('-f', '--file', dest = 'pcaps', nargs = '*', action = 'store', default = [], help = 'the path to the PCap file(s)')
 	parser.add_argument('-s', '--ssid', dest = 'target_ssids', nargs = '*', action = 'store', help = 'specific SSID(s) to analyze')
 	parser.add_argument('-l', '--live', dest = 'capture_live', action = 'store_true', default = False, help = 'analyze packets live')
 	if curses_enabled:
 		parser.add_argument('-c', '--curses', dest = 'use_curses', action = 'store_true', default = False, help = 'use the BETA curses interface when capturing live')
-	parser.add_argument('-i', '--iface', dest = 'interface', action = 'store', help = 'interface to use for live capture')
+	parser.add_argument('-i', '--iface', dest = 'interface', action = 'store', help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	parser.add_argument('--no-xml', dest = 'dont_save_xml', action = 'store_true', default = False, help = 'dont store xml data')
 	results = parser.parse_args()
@@ -136,11 +136,12 @@ def main():
 	scapy_runtime_log.setLevel(logging.ERROR)
 	
 	eapeakParser = EapeakParsingEngine(targetSSIDs)
+	del targetSSIDs
 	
 	xmlFiles = []
 	pcapFiles = []
 	for filename in storedFiles:
-		if filename.split('.')[-1] == 'xml':
+		if 'xml' in filename.split('.')[-1]:
 			if not filename in xmlFiles:
 				xmlFiles.append(filename)
 		elif 'cap' in filename.split('.')[-1]:
@@ -151,9 +152,10 @@ def main():
 		eapeakParser.parsePCapFiles(pcapFiles, False)
 		print ''
 	if xmlFiles:
-		eapeakParser.parseXMLFiles(xmlFiles)
-	del pcapFiles, xmlFiles
-		
+		eapeakParser.parseXMLFiles(xmlFiles, False)
+		print ''
+	del pcapFiles, xmlFiles, storedFiles
+	
 	if capture_live:
 		print 'Begining Live Capture...'
 		if use_curses:
@@ -161,12 +163,12 @@ def main():
 			if errCode:
 				print {1:'Screen must be at least 25x99 for Curses'}[errCode]
 				return 1
+			del errCode
 			timeout = 1.5
 		else:
 			timeout = 0
-			
 		thread.start_new_thread(eapeakParser.cursesInteractionHandler, () )
-		thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, () )
+		thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, (save_to_xml, ) )	# tuples are stupid
 		while True:
 			try:
 				sniff(iface = interface, store = 0, prn = lambda packet: eapeakParser.parseLiveCapture(packet), timeout = timeout )
@@ -180,10 +182,12 @@ def main():
 			except select_error:
 				if use_curses and not eapeakParser.curses_enabled:
 					break
+		del timeout
 		if use_curses:
 			eapeakParser.cleanupCurses()
 		print '\nStopping Live Capture...'
 		print ''
+	del save_to_xml
 	
 	if not len(eapeakParser.KnownNetworks):
 		print 'Found No Usable Information\nTry Again With A Larger Capture'
@@ -197,11 +201,8 @@ def main():
 	intro += '*' * len(intro0) + '****\n'
 	print intro
 	del intro, intro0, intro1
-	
 	networks = eapeakParser.KnownNetworks.keys()
 	networks.sort()
-	if save_to_xml:
-		eapeakParser.exportXML()
 	for network in networks:
 		print eapeakParser.KnownNetworks[network].show()
 		print ''

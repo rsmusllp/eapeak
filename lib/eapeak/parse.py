@@ -24,7 +24,7 @@
 		
 """
 
-__version__ = '0.0.17'
+__version__ = '0.0.18'
 
 import os
 import sys
@@ -188,9 +188,14 @@ class EapeakParsingEngine:
 			if not quite:
 				sys.stdout.write("Reading PCap File: {0}\r".format(pcapName))
 				sys.stdout.flush()
-			if not os.path.isfile(pcap) or not os.access(pcap, os.R_OK):
+			if not os.path.isfile(pcap):
 				if not quite:
-					sys.stdout.write("Skipping File {0} Due To Read Issue\n".format(pcap))
+					sys.stdout.write("Skipping File {0}: File Not Found\n".format(pcap))
+					sys.stdout.flush()
+				continue
+			elif not os.access(pcap, os.R_OK):
+				if not quite:
+					sys.stdout.write("Skipping FIle {0}: Permissions Issue\n".format(pcap))
 					sys.stdout.flush()
 				continue
 			try:
@@ -215,9 +220,16 @@ class EapeakParsingEngine:
 				sys.stdout.flush()
 			self.packets = [ ]
 			
-	def parseXMLFiles(self, xmlFiles):
-		from xml.etree import ElementTree
+	def parseXMLFiles(self, xmlFiles, quite = True):
 		for xmlfile in xmlFiles:
+			if not os.path.isfile(xmlfile):
+				if not quite:
+					print "Skipping File {0}: File Not Found".format(xmlfile)
+				continue
+			elif not os.access(xmlfile, os.R_OK):
+				if not quite:
+					print "Skipping FIle {0}: Permissions Issue".format(xmlfile)
+				continue
 			e = ElementTree.parse(xmlfile)
 			for network in e.findall('wireless-network'):
 				ssid = network.find('SSID')
@@ -286,6 +298,7 @@ class EapeakParsingEngine:
 	def exportXML(self, filename = XML_FILE_NAME):
 		eapeakXML = ElementTree.Element('detection-run')
 		eapeakXML.set('eapeak-version', __version__)
+		eapeakXML.append(ElementTree.Comment(' Summary: Found ' + str(len(self.KnownNetworks)) + ' Network(s) '))
 		networks = self.KnownNetworks.keys()
 		networks.sort()
 		if not networks:
@@ -445,8 +458,8 @@ class EapeakParsingEngine:
 			elif c in [113, 81]:		# 113 = ord('q')
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(6, 40, (self.curses_max_rows / 2 - 3), (self.curses_max_columns / 2 - 20))
+				subwindow.erase()
 				subwindow.addstr(2, 11, 'Really Quit? (y/N)')
-				subwindow.clrtobot()
 				subwindow.border(0)
 				subwindow.refresh()
 				subwindow.overlay(self.screen)
@@ -454,19 +467,20 @@ class EapeakParsingEngine:
 				if c in [121, 89]:
 					break
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
-			elif c in [104, 72]:		# 113 = ord('q')
+			elif c in [104, 72]:		# 113 = ord('h')
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
+				subwindow.erase()
 				subwindow.addstr(1, 15, 'Help Menu')
 				subwindow.addstr(3, 2, 'i/Enter : Toggle View')
 				subwindow.addstr(4, 2, 'q       : Quit')
 				#subwindow.addstr(5, 2, 'e       : Export Users')
-				subwindow.clrtobot()
 				subwindow.border(0)
 				subwindow.refresh()
 				subwindow.overlay(self.screen)
 				c = subwindow.getch()
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+			"""
 			elif c in [101, 69]:		# 101 = ord('e')
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
@@ -477,10 +491,11 @@ class EapeakParsingEngine:
 				subwindow.overlay(self.screen)
 				c = subwindow.getch()
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
+			"""
 		self.cleanupCurses()
 		return
 					
-	def cursesScreenDrawHandler(self):
+	def cursesScreenDrawHandler(self, save_to_xml):
 		xml_save_counter = 0
 		while self.curses_enabled:
 			sleep(CURSES_REFRESH_FREQUENCY)
@@ -574,7 +589,7 @@ class EapeakParsingEngine:
 								tmpEapTypes.append(EAP_TYPES[eType])
 							else:
 								tmpEapTypes.append(str(eType))
-					if i < 10:
+					if i < 9:
 						messages.append([2, str(i + 1) + ')  ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
 					else:
 						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
@@ -586,7 +601,7 @@ class EapeakParsingEngine:
 			for message in messages:
 				self.screen.addnstr(line, TAB_LENGTH * message[0], message[1], self.curses_max_columns - TAB_LENGTH * message[0])
 				line += 1
-				if line > self.curses_max_rows: break
+				if line > self.curses_max_rows: break	# fail safe
 	
 	def cursesSigwinchHandler(self, n, frame):
 		if not self.curses_enabled: return
