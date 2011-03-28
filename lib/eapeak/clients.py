@@ -24,8 +24,6 @@
 		
 """
 
-import pdb
-
 from scapy.layers.l2 import eap_types as EAP_TYPES
 from binascii import hexlify
 EAP_TYPES[0] = 'NONE'

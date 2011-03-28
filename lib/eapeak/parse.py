@@ -23,7 +23,8 @@
 	MA 02110-1301, USA.
 		
 """
-import pdb	# debugging
+
+__version__ = '0.0.17'
 
 import os
 import sys
@@ -36,6 +37,8 @@ except ImportError:
 from struct import unpack
 from binascii import unhexlify
 from time import sleep
+from xml.dom import minidom
+from xml.etree import ElementTree
 
 from scapy.utils import rdpcap
 from scapy.layers.l2 import eap_types as EAP_TYPES
@@ -48,6 +51,7 @@ import eapeak.clients
 
 # Statics
 UNKNOWN_SSID_NAME = 'UNKNOWN_SSID'
+XML_FILE_NAME = 'eapeak.xml'
 SSID_SEARCH_RECURSION = 5
 BSSID_SEARCH_RECURSION = 3
 BSSIDPositionMap = { 0:'3', 1:'1', 2:'2', 8:'3', 9:'1', 10:'2' }
@@ -256,7 +260,9 @@ class EapeakParsingEngine:
 								newClient.addEapType(int(eaptype))
 					identities = client.findall('identity') or []
 					for identity in identities:
-						newClient.addIdentity(identity.get('eap-type'), identity.text.strip())
+						tmp = identity.get('eap-type')
+						if tmp.isdigit():
+							newClient.addIdentity(int(tmp), identity.text.strip())
 					mschaps = client.findall('mschap') or []
 					for mschap in mschaps:
 						newClient.addMSChapInfo(
@@ -271,11 +277,26 @@ class EapeakParsingEngine:
 				else:
 					self.KnownNetworks[bssid] = newNetwork
 				"""
-				If ssid == UNKNOWN_SSID_NAME and there are more than 1 bssids then there will be an issue with where to store the single network object.
-				If there is a client and the network is added to KnownNetworks each time this occurs then the client will appear to under each network but only
-				be associated with the single BSSID.  This problem needs to be addressed and throughly tested.
+				if ssid == UNKNOWN_SSID_NAME and len(network.findall('BSSID')) > 1:
+					there will be an issue with where to store the single network object.
+					If there is a client and the network is added to KnownNetworks each time this occurs then the client will appear to under each network but only
+					be associated with the single BSSID.  This problem needs to be addressed and throughly tested.
 				"""
-					
+	
+	def exportXML(self, filename = XML_FILE_NAME):
+		eapeakXML = ElementTree.Element('detection-run')
+		eapeakXML.set('eapeak-version', __version__)
+		networks = self.KnownNetworks.keys()
+		networks.sort()
+		if not networks:
+			return
+		for network in networks:
+			eapeakXML.append(self.KnownNetworks[network].getXML())
+		xmldata = minidom.parseString(ElementTree.tostring( eapeakXML )).toprettyxml()
+		if xmldata:
+			tmpfile = open(filename, 'w')
+			tmpfile.write(xmldata)
+			tmpfile.close()
 						
 	def parseWirelessPacket(self, packet):
 		if packet.name == 'RadioTap dummy':
@@ -460,8 +481,14 @@ class EapeakParsingEngine:
 		return
 					
 	def cursesScreenDrawHandler(self):
+		xml_save_counter = 0
 		while self.curses_enabled:
 			sleep(CURSES_REFRESH_FREQUENCY)
+			if save_to_xml and xml_save_counter == 10:
+				self.exportXML()
+				xml_save_counter = 0
+			else:
+				xml_save_counter += 1
 			if self.curses_lower_refresh_counter == 0:
 				continue
 			self.screen.refresh()

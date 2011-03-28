@@ -39,12 +39,9 @@
 		
 """
 
-DEBUG = True
-if DEBUG:
-	import pdb
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '16'
+__version_build__ = '17'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -58,8 +55,6 @@ def main():
 	import logging
 	import argparse
 	from select import error as select_error
-	from xml.dom import minidom
-	from xml.etree import ElementTree
 	try:
 		import curses
 		curses_enabled = True
@@ -102,6 +97,7 @@ def main():
 		parser.add_argument('-c', '--curses', dest = 'use_curses', action = 'store_true', default = False, help = 'use the BETA curses interface when capturing live')
 	parser.add_argument('-i', '--iface', dest = 'interface', action = 'store', help = 'interface to use for live capture')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
+	parser.add_argument('--no-xml', dest = 'dont_save_xml', action = 'store_true', default = False, help = 'dont store xml data')
 	results = parser.parse_args()
 	storedFiles = results.pcaps
 	targetSSIDs = results.target_ssids
@@ -114,6 +110,7 @@ def main():
 	if not capture_live and not storedFiles:
 		parser.print_help()
 		return 0
+	save_to_xml = not results.dont_save_xml
 	del results, parser
 	
 	if capture_live and not interface:
@@ -155,7 +152,8 @@ def main():
 		print ''
 	if xmlFiles:
 		eapeakParser.parseXMLFiles(xmlFiles)
-			
+	del pcapFiles, xmlFiles
+		
 	if capture_live:
 		print 'Begining Live Capture...'
 		if use_curses:
@@ -184,14 +182,11 @@ def main():
 					break
 		if use_curses:
 			eapeakParser.cleanupCurses()
-		#return 0
 		print '\nStopping Live Capture...'
 		print ''
 	
 	if not len(eapeakParser.KnownNetworks):
 		print 'Found No Usable Information\nTry Again With A Larger Capture'
-		if DEBUG:
-			pdb.set_trace()
 		return 0	# we didn't find anything don't continue
 	
 	intro0 = 'EAPeak Summary of Wireless Networks'
@@ -205,16 +200,11 @@ def main():
 	
 	networks = eapeakParser.KnownNetworks.keys()
 	networks.sort()
-	if not DEBUG:
-		for network in networks:
-			print eapeakParser.KnownNetworks[network].show()
-			print ''
-	else:
-		eapeakXML = ElementTree.Element('detection-run')
-		eapeakXML.set('eapeak-version', __version__) 
-		for network in networks:
-			eapeakXML.append(eapeakParser.KnownNetworks[network].getXML())
-		print minidom.parseString(ElementTree.tostring( eapeakXML )).toprettyxml()
+	if save_to_xml:
+		eapeakParser.exportXML()
+	for network in networks:
+		print eapeakParser.KnownNetworks[network].show()
+		print ''
 
 	return 0
 
