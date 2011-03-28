@@ -24,7 +24,7 @@
 		
 """
 
-__version__ = '0.0.19'
+__version__ = '0.0.20'
 
 import os
 import sys
@@ -170,6 +170,7 @@ class EapeakParsingEngine:
 		self.screen.refresh()
 		curses.curs_set(0)
 		curses.noecho()
+		curses.cbreak()
 		self.curses_enabled = True
 		self.curses_lower_refresh_counter = 1
 		#signal.signal(signal.SIGWINCH, self.cursesSigwinchHandler)
@@ -485,26 +486,43 @@ class EapeakParsingEngine:
 				subwindow = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
 				subwindow.erase()
 				subwindow.addstr(1, 15, 'Help Menu')
-				subwindow.addstr(3, 2, 'i/Enter : Toggle View')
-				subwindow.addstr(4, 2, 'q       : Quit')
-				#subwindow.addstr(5, 2, 'e       : Export Users')
+				subwindow.addstr(2, 9, 'EAPeak Version: ' + __version__)
+				subwindow.addstr(4, 2, 'i/Enter : Toggle View')
+				subwindow.addstr(5, 2, 'q       : Quit')
+				subwindow.addstr(6, 2, 'e       : Export Users For The')
+				subwindow.addstr(7, 2, '          Selected Network')
 				subwindow.border(0)
 				subwindow.refresh()
 				subwindow.overlay(self.screen)
 				c = subwindow.getch()
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
-			"""
 			elif c in [101, 69]:		# 101 = ord('e')
+				usernames = []
+				if self.curses_detailed in self.KnownNetworks:
+					network = self.KnownNetworks[ self.curses_detailed ]
+				else:
+					network = self.KnownNetworks.values()[self.user_marker_pos - 1 + self.curses_row_offset]
+				filename = network.ssid + '_users.txt'
+				for client in network.clients.values():
+					usernames.extend(client.identities.keys())
+				try:
+					filehandle = open(filename, 'w')
+					filehandle.write("\n".join(usernames) + '\n')
+					filehandle.close()
+					message = 'Successfully Saved'
+				except:
+					message = 'Failed To Save'
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
-				subwindow.addstr(1, 15, 'Save File As')
+				subwindow.addstr(2, 2, 'File: ' + filename)
+				subwindow.addstr(3, 2, message)
+				subwindow.addstr(6, 8, 'Press Any Key To Continue')
 				subwindow.clrtobot()
 				subwindow.border(0)
 				subwindow.refresh()
 				subwindow.overlay(self.screen)
-				c = subwindow.getch()
+				c = subwindow.getch()				
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
-			"""
 		self.cleanupCurses()
 		return
 					

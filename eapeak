@@ -41,7 +41,7 @@
 
 __version_major__ = '0'
 __version_minor__ = '0'
-__version_build__ = '19'
+__version_build__ = '20'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
