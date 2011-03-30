@@ -25,6 +25,7 @@
 """
 
 from struct import pack, unpack
+from random import randint
 from eapeak.parse import getBSSID, getSource, getDestination
 from ipfunc import getHwAddr
 
@@ -45,7 +46,7 @@ class WirelessStateMachine:
 		self.bssid = bssid
 		self.connected = False	# connected / associated
 		self.local_mac = local_mac
-		self.sequence = 1700
+		self.sequence = randint(1200, 2000)
 		self.lastpacket = None
 	
 	def __unfuckupSC__(self, sequence, fragment = 0):
@@ -90,15 +91,15 @@ class WirelessStateMachine:
 		self.sequence = 0	# reset it
 		return 0
 		
-	def disconnect(self, essid):
+	def disconnect(self):
+		"""
+		errDict = {-1:"Not Connected", 0:"No Error"}
+		"""
 		if not self.connected:
 			return -1
+		sendp(RadioTap()/Dot11(addr1=self.bssid, addr2=self.local_mac, addr3=self.bssid, SC=self.__unfuckupSC__(self.sequence), type=0, subtype=12)/Dot11Disas(reason=3), iface=self.interface, verbose=False)
+		sendp(RadioTap()/Dot11(addr1=self.bssid, addr2=self.local_mac, addr3=self.bssid, SC=self.__unfuckupSC__(self.sequence), type=0, subtype=12)/Dot11Disas(reason=3), iface=self.interface, verbose=False)
 		self.connected = False
-		sendp(RadioTap()/Dot11(addr1=self.bssid, addr2=self.local_mac, addr3=self.bssid, SC=self.__unfuckupSC__(self.sequence), type=0, subtype=12)/Dot11Disas(reason=3), iface=self.interface, verbose=False)
-		sendp(RadioTap()/Dot11(addr1=self.bssid, addr2=self.local_mac, addr3=self.bssid, SC=self.__unfuckupSC__(self.sequence), type=0, subtype=12)/Dot11Disas(reason=3), iface=self.interface, verbose=False)
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None:
-			return 1
 		return 0
 
 	def check_eap_type(self, eaptype):

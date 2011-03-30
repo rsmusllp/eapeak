@@ -25,10 +25,9 @@
 		
 """
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 __authors__ = [ 'Spencer McIntyre', 'SecureState R&D Team' ]
 
-import pdb
 import sys
 import argparse
 import logging
@@ -70,23 +69,39 @@ STATUS = '\033[1;34m[*]\033[1;m '
 ERROR = '\033[1;31m[-]\033[1;m '
 ERROR_SLEEP_TIME = 1.5	# time to wait between error and retry
 
+def check_iface(ifname):
+	"""
+	This is a modified function from one I found online to get an IP
+	errDict = {-1: "Unknown", 0:"No Error", 1:"Iface Exists, No IP", 2:"Iface Does Not Exist"}
+	"""
+	from socket import socket, AF_INET, SOCK_DGRAM
+	from fcntl import ioctl
+	from struct import pack
+	s = socket(AF_INET, SOCK_DGRAM)
+	try:
+		addr = ioctl(s.fileno(), 0x8915, pack('256s', ifname[:15]))[20:24]
+	except IOError as err:
+		if err.errno == 99:
+			return 1
+		elif err.errno == 19:
+			return 2
+		return -1
+	return 0
+
 def eap_scan(interface, bssid, essid, check_range):
 	valid_eap_types = []
 		
 	for eaptype in check_range:
 		sys.stdout.write(STATUS + 'Checking EAP Type: ' + str(eaptype) + '\r')
 		sys.stdout.flush()
-		
-		statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__())
 		tries = 0
 		while tries < 5:
-			statemachine.disconnect(essid)
 			statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__())
 			errCode = statemachine.connect(essid)
 			if errCode:
 				sleep(ERROR_SLEEP_TIME)
 				tries += 1
-				continue
+				continue # try same
 			errCode = statemachine.check_eap_type(eaptype)
 			if errCode == 0:
 				if eaptype in EAP_TYPES:
@@ -96,14 +111,17 @@ def eap_scan(interface, bssid, essid, check_range):
 				sys.stdout.flush()
 				valid_eap_types.append(eaptype)
 				tries = 0
-				break
+				statemachine.disconnect()
+				break # try next
 			elif errCode == 1:
 				tries = 0
-				break
+				statemachine.disconnect()
+				break # try next
 			elif errCode == 2:
 				sleep(ERROR_SLEEP_TIME)
 				tries += 1
-				continue
+				statemachine.disconnect()
+				continue # try same
 		if tries == 0:
 			continue
 		if eaptype in EAP_TYPES:
@@ -114,6 +132,34 @@ def eap_scan(interface, bssid, essid, check_range):
 	sys.stdout.write('                          \n') # overwrite checking stuff
 	sys.stdout.flush()
 	return valid_eap_types
+	
+def check_ap_connection(interface, bssid, essid, check_range, quite = True):
+	if not quite:
+		sys.stdout.write(STATUS + 'Checking Connection To AP')
+		sys.stdout.flush()
+	tries = 0
+	while tries < 3:
+		statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__())
+		errCode = statemachine.connect(essid)
+		if errCode:
+			sleep(ERROR_SLEEP_TIME)
+			if not quite:
+				sys.stdout.write('.')
+				sys.stdout.flush()
+			tries += 1
+			continue
+		statemachine.disconnect()
+		tries = 0
+		break
+	if tries != 0:
+		if not quite:
+			sys.stdout.write('\n' + ERROR + 'Connection Attempts Failed\n')
+			sys.stdout.flush()
+		return False
+	elif not quite:
+		sys.stdout.write(' OK!\n')
+		sys.stdout.flush()
+	return True
 
 def main():
 	parser = argparse.ArgumentParser(description = 'EAPwn: Actively Enumerate 802.1x Wireless Networks', conflict_handler='resolve')
@@ -128,7 +174,7 @@ def main():
 	options = parser.parse_args()
 	
 	if getuid():
-		print BAD + 'Must Be Root To Inject Packets, Now Exiting...'
+		print ERROR + 'Must Be Root To Inject Packets, Now Exiting...'
 		return 2
 		
 	if not options.essid or not options.bssid or not options.iface:
@@ -136,9 +182,12 @@ def main():
 		return 0
 		
 	if not sanitizeMAC(options.bssid) or (options.smac and not sanitizeMAC(options.smac)):
-		print BAD + 'Invalid MAC Address, Now Exiting...'
+		print ERROR + 'Invalid MAC Address, Now Exiting...'
 		return 3
 	
+	if not check_iface(options.iface) in [ 0, 1 ]:
+		print ERROR + 'Invalid Interface, Now Exiting...'
+		return 4
 	
 	if options.scan_all:
 		print STATUS + 'Scanning All EAP Types, This Could Take A While...'
@@ -150,12 +199,15 @@ def main():
 				check_range.append(i)
 		if len(check_range) == 0:
 			print ERROR + 'No Usable EAP Types (4-253), Now Exiting...'
-			return 4
+			return 5
 	else:
 		check_range = EAP_TYPES.keys()
 		check_range.sort()
 		check_range = check_range[4:]
 		
+	if not check_ap_connection(options.iface, options.bssid, options.essid, check_range, False):
+		print ERROR + 'Now Exiting...'
+		return 0
 	valid_eap_types = eap_scan(options.iface, options.bssid, options.essid, check_range)
 	
 	if options.save_xml:
