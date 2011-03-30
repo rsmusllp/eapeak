@@ -53,7 +53,7 @@ setup(
 	package_dir = { '': 'lib' },
 	py_modules = [ 'ipfunc' ],
 	
-	scripts = ['eapeak'],
+	scripts = [ 'eapeak', 'eapscan' ],
 	data_files = [	
 					('/usr/share/man/man1', ['data/man/eapeak.1.gz'])
 					]
