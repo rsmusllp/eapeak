@@ -104,10 +104,13 @@ class WirelessClient:
 				else:
 					output += ('\t' * tabs) + '\tEAP Code: ' + str(eapType) + '\n'
 		if self.mschap:
-			output += ('\t' * tabs) + 'MS Chap Challenge & Responses:\n'
+			the_cheese_stands_alone = True
 			for respObj in self.mschap:
 				if not 'r' in respObj:									# no response? useless
 					continue
+				if the_cheese_stands_alone:
+					output += ('\t' * tabs) + 'MS Chap Challenge & Responses:\n'
+					the_cheese_stands_alone = False
 				output += ('\t' * tabs) + '\tEAP Type: ' + EAP_TYPES[respObj['t']]
 				if respObj['i']:
 					output += ', Identity: ' + respObj['i']

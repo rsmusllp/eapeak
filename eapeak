@@ -40,8 +40,8 @@
 """
 
 __version_major__ = '0'
-__version_minor__ = '0'
-__version_build__ = '20'
+__version_minor__ = '1'
+__version_build__ = '0'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -65,7 +65,8 @@ def main():
 	try:
 		from scapy.config import conf
 	except ImportError:
-		print 'Error: Missing Scapy Libraries, Please Install Scapy'
+		print 'Error: Missing Scapy Libraries, Please Install Scapy From The Community Repository'
+		# http://hg.secdev.org/scapy-com # needs community repository because of the extra EAP layers I added.
 		print 'Error: Now Exiting...'
 		return 1
 		
@@ -147,12 +148,12 @@ def main():
 		elif 'cap' in filename.split('.')[-1]:
 			if not filename in pcapFiles:
 				pcapFiles.append(filename)
-	
-	if pcapFiles:
-		eapeakParser.parsePCapFiles(pcapFiles, False)
-		print ''
+				
 	if xmlFiles:
 		eapeakParser.parseXMLFiles(xmlFiles, False)
+		print ''
+	if pcapFiles:
+		eapeakParser.parsePCapFiles(pcapFiles, False)
 		print ''
 	del pcapFiles, xmlFiles, storedFiles
 	
@@ -161,18 +162,18 @@ def main():
 		if use_curses:
 			errCode = eapeakParser.initCurses()
 			if errCode:
-				print {1:'Screen must be at least 25x99 for Curses'}[errCode]
+				print {1:'Screen must be at least 99x25 for Curses'}[errCode]
 				return 1
 			del errCode
 			timeout = 1.5
+			thread.start_new_thread(eapeakParser.cursesInteractionHandler, () )
+			thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, (save_to_xml, ) )	# tuples are stupid
 		else:
-			timeout = 0
-		thread.start_new_thread(eapeakParser.cursesInteractionHandler, () )
-		thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, (save_to_xml, ) )	# tuples are stupid
+			timeout = None
 		while True:
 			try:
-				sniff(iface = interface, store = 0, prn = lambda packet: eapeakParser.parseLiveCapture(packet), timeout = timeout )
-				if use_curses and not eapeakParser.curses_enabled:
+				sniff(iface = interface, store = 0, prn = lambda packet: eapeakParser.parseLiveCapture(packet, use_curses), timeout = timeout )
+				if (use_curses and not eapeakParser.curses_enabled) or not use_curses:
 					break
 			except KeyboardInterrupt:
 				break

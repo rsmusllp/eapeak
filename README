@@ -22,9 +22,10 @@ This license does not apply to the following components:
 Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
 HomePage: http://www.securestate.com/
 
-Please Send Bug Reports To: bugs@securestate.com
+Please Send Bug Reports To: eapeakdev@securestate.com
 
 == Install ==
 For install information please see the INSTALL file.
-The newest Scapy Development build (2.1.1-dev) is required because of
-the changes made to it by the author(s).
+The newest Scapy Community build (2.1.1-dev) is required because of
+the changes made to it by the author(s).  It can be downloaded here:
+http://hg.secdev.org/scapy-com

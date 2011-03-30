@@ -24,7 +24,7 @@
 		
 """
 
-__version__ = '0.0.20'
+__version__ = '0.1.0'
 
 import os
 import sys
@@ -59,7 +59,7 @@ SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
 DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 CURSES_LINE_BREAK = [0, '']
 CURSES_REFRESH_FREQUENCY = 0.10
-CURSES_LOWER_REFRESH_FREQUENCY = 5	# frequency of CURSES_REFRESH_FREQUENCY
+CURSES_LOWER_REFRESH_FREQUENCY = 5	# frequency of CURSES_REFRESH_FREQUENCY, also used for calls to exportXML
 CURSES_MIN_X = 99					# minimum screen size
 CURSES_MIN_Y = 25
 TAB_LENGTH = 4						# in spaces
@@ -173,12 +173,11 @@ class EapeakParsingEngine:
 		curses.cbreak()
 		self.curses_enabled = True
 		self.curses_lower_refresh_counter = 1
-		#signal.signal(signal.SIGWINCH, self.cursesSigwinchHandler)
 		return 0
 		
 	def parseLiveCapture(self, packet, quite = True):
 		self.parseWirelessPacket(packet)
-		if not self.curses_enabled or quite:
+		if self.curses_enabled or quite:
 			return
 		sys.stdout.write('Packets: ' + str(self.packetCounter) + ' Wireless Networks: ' + str(len(self.KnownNetworks)) + '\r')
 		sys.stdout.flush()
@@ -226,12 +225,16 @@ class EapeakParsingEngine:
 		for xmlfile in xmlFiles:
 			if not os.path.isfile(xmlfile):
 				if not quite:
-					print "Skipping File {0}: File Not Found".format(xmlfile)
+					sys.stdout.write("Skipping File {0}: File Not Found\n".format(xmlfile))
+					sys.stdout.flush()
 				continue
 			elif not os.access(xmlfile, os.R_OK):
 				if not quite:
-					print "Skipping File {0}: Permissions Issue".format(xmlfile)
+					sys.stdout.write("Skipping File {0}: Permissions Issue\n".format(xmlfile))
+					sys.stdout.flush()
 				continue
+			sys.stdout.write("Parsing XML  File: {0}".format(xmlfile))
+			sys.stdout.flush()
 			e = ElementTree.parse(xmlfile)
 			for network in e.findall('wireless-network'):
 				ssid = network.find('SSID')
@@ -269,9 +272,11 @@ class EapeakParsingEngine:
 					newClient = eapeak.clients.WirelessClient(bssid, client_mac)
 					eaptypes = client.find('eap-types')
 					if isinstance(eaptypes, ElementTree.Element):
-						for eaptype in eaptypes.text.strip().split(','):
-							if eaptype.isdigit():
-								newClient.addEapType(int(eaptype))
+						eaptypes = eaptypes.text
+						if eaptypes != None:
+							for eaptype in eaptypes.strip().split(','):
+								if eaptype.isdigit():
+									newClient.addEapType(int(eaptype))
 					identities = client.findall('identity') or []
 					for identity in identities:
 						tmp = identity.get('eap-type')
@@ -296,6 +301,8 @@ class EapeakParsingEngine:
 					If there is a client and the network is added to KnownNetworks each time this occurs then the client will appear to under each network but only
 					be associated with the single BSSID.  This problem needs to be addressed and throughly tested.
 				"""
+			sys.stdout.write(" Done")
+			sys.stdout.flush()
 	
 	def exportXML(self, filename = XML_FILE_NAME):
 		eapeakXML = ElementTree.Element('detection-run')
@@ -428,6 +435,13 @@ class EapeakParsingEngine:
 	def cursesInteractionHandler(self, garbage = None):
 		while self.curses_enabled:
 			c = self.screen.getch()
+			if self.curses_lower_refresh_counter == 0:
+				continue
+			size = self.screen.getmaxyx()
+			if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
+				if not self.resizeDialog():
+					break
+				continue
 			if c in [65, 117, 85]:		# 117 = ord('u')
 				if self.curses_detailed:
 					if self.curses_row_offset > 0:
@@ -527,15 +541,14 @@ class EapeakParsingEngine:
 		return
 					
 	def cursesScreenDrawHandler(self, save_to_xml):
-		xml_save_counter = 0
 		while self.curses_enabled:
 			sleep(CURSES_REFRESH_FREQUENCY)
-			if save_to_xml and xml_save_counter == 10:
-				self.exportXML()
-				xml_save_counter = 0
-			else:
-				xml_save_counter += 1
-			if self.curses_lower_refresh_counter == 0:
+			if self.curses_lower_refresh_counter == 0:	# used to trigger pauses
+				continue
+			size = self.screen.getmaxyx()
+			if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
+				if not self.resizeDialog():
+					break
 				continue
 			self.screen.refresh()
 			self.screen.addstr(2, 4, 'EAPeak Capturing Live')			# this is all static, so don't use the messages queue
@@ -546,6 +559,8 @@ class EapeakParsingEngine:
 				self.curses_lower_refresh_counter = 1
 				self.screen.move(7, 0)
 				self.screen.clrtobot()
+				if save_to_xml:
+					self.exportXML()
 			else:
 				self.curses_lower_refresh_counter += 1
 				continue
@@ -638,36 +653,31 @@ class EapeakParsingEngine:
 				self.screen.border(0)
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			line = 7
-			for message in messages:
-				self.screen.addnstr(line, TAB_LENGTH * message[0], message[1], self.curses_max_columns - TAB_LENGTH * message[0])
-				line += 1
-				if line > self.curses_max_rows: break	# fail safe
-	
-	def cursesSigwinchHandler(self, n, frame):
-		if not self.curses_enabled: return
+			try:
+				for message in messages:
+					self.screen.addnstr(line, TAB_LENGTH * message[0], message[1], self.curses_max_columns - TAB_LENGTH * message[0])
+					line += 1
+					if line > self.curses_max_rows: break	# fail safe
+			except _curses.error:
+				pass
+		self.cleanupCurses()
+		return
+				
+	def resizeDialog(self):
 		self.curses_lower_refresh_counter = 0
-		sleep(CURSES_REFRESH_FREQUENCY)
-		curses.endwin()
-		
-		self.user_marker_pos = 1							# used with curses
-		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
-		self.curses_detailed = None							# used with curses
-		self.screen = curses.initscr()
-		curses.start_color()
-		curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_WHITE)
 		size = self.screen.getmaxyx()
-		if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
-			self.cleanupCurses()
-			return
+		self.screen.erase()
+		self.screen.addstr(0, 0, 'Screen Too Small, Requires')
+		self.screen.addstr(1, 0, 'At Least: ' + str(CURSES_MIN_X) + 'x' + str(CURSES_MIN_Y))
+		self.screen.refresh()
+		while size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
+			if size[0] < 2 or size[1] < 26:
+				return False
+			size = self.screen.getmaxyx()
+			self.screen.refresh() # this has to be here
+		self.screen.erase()
+		self.screen.refresh()
+		self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
 		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
 		self.curses_max_columns = size[1] - 2
-		
-		self.screen.border(0)
-		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
-		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
-		self.screen.addstr(4, TAB_LENGTH, 'Processed 0 Packets')
-		self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-		self.screen.refresh()
-		curses.curs_set(0)
-		self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
-		return 0
+		return True
