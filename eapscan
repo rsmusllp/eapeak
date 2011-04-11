@@ -96,7 +96,7 @@ def eap_scan(interface, bssid, essid, check_range):
 		sys.stdout.flush()
 		tries = 0
 		while tries < 5:
-			statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__())
+			statemachine = WirelessStateMachineEAP(interface, bssid, RandMAC('00:*:*:*:*:*').__str__())
 			errCode = statemachine.connect(essid)
 			if errCode:
 				sleep(ERROR_SLEEP_TIME)
@@ -111,16 +111,16 @@ def eap_scan(interface, bssid, essid, check_range):
 				sys.stdout.flush()
 				valid_eap_types.append(eaptype)
 				tries = 0
-				statemachine.disconnect()
+				statemachine.close()
 				break # try next
 			elif errCode == 1:
 				tries = 0
-				statemachine.disconnect()
+				statemachine.close()
 				break # try next
 			elif errCode == 2:
 				sleep(ERROR_SLEEP_TIME)
 				tries += 1
-				statemachine.disconnect()
+				statemachine.close()
 				continue # try same
 		if tries == 0:
 			continue
@@ -133,7 +133,7 @@ def eap_scan(interface, bssid, essid, check_range):
 	sys.stdout.flush()
 	return valid_eap_types
 	
-def check_ap_connection(interface, bssid, essid, check_range, quite = True):
+def check_ap_connection(interface, bssid, essid, quite = True):
 	if not quite:
 		sys.stdout.write(STATUS + 'Checking Connection To AP')
 		sys.stdout.flush()
@@ -148,7 +148,7 @@ def check_ap_connection(interface, bssid, essid, check_range, quite = True):
 				sys.stdout.flush()
 			tries += 1
 			continue
-		statemachine.disconnect()
+		statemachine.close()
 		tries = 0
 		break
 	if tries != 0:
@@ -162,8 +162,8 @@ def check_ap_connection(interface, bssid, essid, check_range, quite = True):
 	return True
 
 def main():
-	parser = argparse.ArgumentParser(description = 'EAPwn: Actively Enumerate 802.1x Wireless Networks', conflict_handler='resolve')
-	parser.add_argument('-e', '--essid', dest = 'essid', action = 'store', default = '', help = 'target SSID')
+	parser = argparse.ArgumentParser(description = 'EAPScan: Actively Enumerate 802.1x Wireless Networks', conflict_handler='resolve')
+	parser.add_argument('-e', '--essid', dest = 'essid', action = 'store', default = '', help = 'target ESSID')
 	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', default = '', help = 'target BSSID')
 	parser.add_argument('-s', '--smac', dest = 'smac', action = 'store', default = '', help = 'source MAC address')
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', help = 'interface to use when capturing live')
@@ -173,13 +173,13 @@ def main():
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
 	options = parser.parse_args()
 	
-	if getuid():
-		print ERROR + 'Must Be Root To Inject Packets, Now Exiting...'
-		return 2
-		
 	if not options.essid or not options.bssid or not options.iface:
 		parser.print_help()
 		return 0
+	
+	if getuid():
+		print ERROR + 'Must Be Root To Inject Packets, Now Exiting...'
+		return 2
 		
 	if not sanitizeMAC(options.bssid) or (options.smac and not sanitizeMAC(options.smac)):
 		print ERROR + 'Invalid MAC Address, Now Exiting...'
@@ -189,6 +189,7 @@ def main():
 		print ERROR + 'Invalid Interface, Now Exiting...'
 		return 4
 	
+	# Build the list of EAP types that we're scanning for
 	if options.scan_all:
 		print STATUS + 'Scanning All EAP Types, This Could Take A While...'
 		check_range = range(4, 254)
@@ -196,7 +197,7 @@ def main():
 		check_range = []
 		for i in options.eap_types:
 			if i.isdigit() and 3 < int(i) < 254:
-				check_range.append(i)
+				check_range.append(int(i))
 		if len(check_range) == 0:
 			print ERROR + 'No Usable EAP Types (4-253), Now Exiting...'
 			return 5
@@ -204,10 +205,13 @@ def main():
 		check_range = EAP_TYPES.keys()
 		check_range.sort()
 		check_range = check_range[4:]
-		
-	if not check_ap_connection(options.iface, options.bssid, options.essid, check_range, False):
+	
+	# Make sure the AP is responding
+	if not check_ap_connection(options.iface, options.bssid, options.essid, False):
 		print ERROR + 'Now Exiting...'
 		return 0
+	
+	# Scan for the eap types
 	valid_eap_types = eap_scan(options.iface, options.bssid, options.essid, check_range)
 	
 	if options.save_xml:
