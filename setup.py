@@ -55,6 +55,7 @@ setup(
 	
 	scripts = [ 'eapeak', 'eapscan' ],
 	data_files = [	
-					('/usr/share/man/man1', ['data/man/eapeak.1.gz'])
+					('/usr/share/man/man1', ['data/man/eapeak.1.gz']),
+					('/usr/share/man/man1', ['data/man/eapscan.1.gz'])
 					]
 	)

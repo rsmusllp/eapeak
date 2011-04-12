@@ -106,6 +106,7 @@ class WirelessStateMachine:
 		
 	def connect(self, essid):
 		"""
+		Connect/Associate with an access point.
 		errDict = {-1:"Already Connected", 0:"No Error", 1:"Failed To Get Probe Response", 2:"Failed To Get Authentication Response", 3:"Failed To Get Association Response"}
 		"""
 		# Dot11 Probe Request
@@ -137,6 +138,7 @@ class WirelessStateMachine:
 		
 	def close(self):
 		"""
+		Disassociate from the access point,  This does not veify that the AP received the message and should be considred a best-effort attempt.
 		errDict = {-1:"Not Connected", 0:"No Error"}
 		"""
 		if not self.connected:
@@ -152,11 +154,17 @@ class WirelessStateMachine:
 		self.ssid_broadcaster.start()
 		
 	def recv(self):
+		"""
+		Read a frame and return the information above the Dot11 layer.
+		"""
 		data = sniff(iface=self.interface, store=1, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
 		data = data[-1].getlayer(Dot11)
 		return data
 		
 	def send(self, data, dot11_type = 2, dot11_subtype = 8):
+		"""
+		Send a frame, inserting the data above the Dot11QoS layer.
+		"""
 		sendp(RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.local_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=dot11_type, subtype=dot11_subtype)/Dot11QoS()/data, iface=self.interface, verbose=False)
 		self.sequence += 1
 		
@@ -172,6 +180,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 	"""
 	def check_eap_type(self, eaptype):
 		"""
+		Check that an eaptype is supported.
 		errDict = {0:"supported", 1:"not supported", 2:"could not determine"}
 		"""
 		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.local_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, identity='user')
