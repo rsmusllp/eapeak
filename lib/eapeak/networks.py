@@ -25,6 +25,7 @@
 """
 
 from scapy.layers.l2 import eap_types as EAP_TYPES
+from M2Crypto import X509
 EAP_TYPES[0] = 'NONE'
 
 def XMLEscape(string):
@@ -48,6 +49,7 @@ class WirelessNetwork:
 		self.clients = {}	# indexed by client MAC
 		self.eapTypes = []
 		self.ssid = ssid
+		self.x509certs = []	# list of certificates
 		
 		if bssid:
 			self.bssids.append(bssid)
@@ -56,6 +58,14 @@ class WirelessNetwork:
 	def addBSSID(self, bssid):
 		if bssid not in self.bssids:
 			self.bssids.append(bssid)
+			
+	def addCertificate(self, certificate):
+		if not isinstance(certificate, X509.X509):
+			try:
+				certificate = X509.load_cert_string(certificate, X509.FORMAT_DER)
+			except:
+				return 1
+		self.x509certs.append(certificate)
 			
 	def addEapType(self, eapType):
 		if eapType not in self.eapTypes and eapType not in [1, 3]:
@@ -94,6 +104,13 @@ class WirelessNetwork:
 			for client in self.clients.values():
 				output += '\t\tClient #' + str(i) + '\n' + client.show(2) + '\n'
 				i += 1
+		if self.x509certs:
+			output += '\tCertificates:\n'
+			i = 1
+			for cert in self.x509certs:
+				output += '\n\tCertificate #' + str(i) + '\n'
+				output += "\n\t".join(cert.as_text().split('\n')[1:])
+				output += '\n'
 		return output[:-1]
 		
 	def updateSSID(self, ssid):
@@ -114,4 +131,8 @@ class WirelessNetwork:
 
 		for client in self.clients.values():
 			root.append(client.getXML())
+		for cert in self.x509certs:
+			tmp = Element.SubElement(root, 'Certificates').text = cert.as_der()
+			tmp.set('encoding', 'DER')
+			
 		return root

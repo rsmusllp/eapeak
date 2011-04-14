@@ -24,7 +24,7 @@
 		
 """
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 import os
 import sys
@@ -39,6 +39,7 @@ from binascii import unhexlify
 from time import sleep
 from xml.dom import minidom
 from xml.etree import ElementTree
+from M2Crypto import X509
 
 from scapy.utils import rdpcap
 from scapy.layers.l2 import eap_types as EAP_TYPES
@@ -68,6 +69,8 @@ USER_MARKER = '=> '
 USER_MARKER_OFFSET = 8
 SSID_MAX_LENGTH = 32
 from scapy.layers.l2 import eap_types as EAP_TYPES
+from scapy.layers.l2 import LEAP, EAP_Fast, EAP_TLS, EAP_TTLS, PEAP
+from scapy.layers.ssl import TLSv1RecordLayer, TLSv1ClientHello, TLSv1ServerHello, TLSv1ServerHelloDone, TLSv1KeyExchange, TLSv1Certificate
 EAP_TYPES[0] = 'NONE'
 
 def getBSSID(packet):
@@ -137,47 +140,11 @@ class EapeakParsingEngine:
 		self.packets = [ ]
 		self.targetSSIDs = targetSSIDs
 		self.packetCounter = 0
-		self.curses_enabled = False
-		
-	def cleanupCurses(self):
-		if not self.curses_enabled: return
-		self.screen.erase()
-		del self.screen
-		curses.endwin()
-		curses.echo()
-		self.curses_enabled = False
-		
-	def initCurses(self):
-		self.user_marker_pos = 1							# used with curses
-		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
-		self.curses_row_offset_store = 0					# used for storing the row offset when switching from detailed to non-detailed view modes
-		self.curses_detailed = None							# used with curses
-		self.screen = curses.initscr()
-		curses.start_color()
-		curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_WHITE)
-		size = self.screen.getmaxyx()
-		if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
-			curses.endwin()
-			return 1
-		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
-		self.curses_max_columns = size[1] - 2
-		
-		self.screen.border(0)
-		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
-		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
-		self.screen.addstr(4, TAB_LENGTH, 'Processed 0 Packets')
-		self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-		self.screen.refresh()
-		curses.curs_set(0)
-		curses.noecho()
-		curses.cbreak()
-		self.curses_enabled = True
-		self.curses_lower_refresh_counter = 1
-		return 0
+		self.fragment_buffer = {}							# holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
 		
 	def parseLiveCapture(self, packet, quite = True):
 		self.parseWirelessPacket(packet)
-		if self.curses_enabled or quite:
+		if quite:
 			return
 		sys.stdout.write('Packets: ' + str(self.packetCounter) + ' Wireless Networks: ' + str(len(self.KnownNetworks)) + '\r')
 		sys.stdout.flush()
@@ -220,6 +187,7 @@ class EapeakParsingEngine:
 				sys.stdout.write("Parsing PCap File: {} {:,} of {:,} Packets Done\n".format(pcapName, i + 1, len(self.packets)))
 				sys.stdout.flush()
 			self.packets = [ ]
+			self.fragment_buffer = {}
 			
 	def parseXMLFiles(self, xmlFiles, quite = True):
 		for xmlfile in xmlFiles:
@@ -366,8 +334,9 @@ class EapeakParsingEngine:
 			shouldStop = True
 		if shouldStop:
 			return
-					
+				
 		# this section extracts useful EAP info
+		cert_layer = None
 		if 'EAP' in packet:
 			fields = packet.getlayer('EAP').fields
 			if fields['code'] not in [1, 2]:							# don't bother parsing through success and failures just yet.
@@ -410,15 +379,31 @@ class EapeakParsingEngine:
 					
 			if from_AP:													# from here on we look for things based on whether it's to or from the AP
 				if packet.haslayer('LEAP'):
-					leap_fields = packet.getlayer('EAP').payload.fields
+					leap_fields = packet.getlayer(LEAP).fields
 					if 'data' in leap_fields and len(leap_fields['data']) == 8:
 						client.addMSChapInfo(17, challenge = leap_fields['data'], identity = leap_fields['name'])
 					del leap_fields
+				elif packet.haslayer('PEAP'):
+					peap = packet.getlayer(PEAP)
+					if not 'flags' in peap.fields:
+						return # this data is broken
+					conn_string = bssid + ' ' + client_mac
+					if peap.flags & 16 and peap.flags & 32:				# start of new fragmented chain
+						self.fragment_buffer[conn_string] = [peap]		# initialize new buffer, nevermind if one existed already
+					elif peap.flags & 16:								# continuation of fragmented chain
+						if conn_string in self.fragment_buffer:
+							self.fragment_buffer[conn_string].append(peap.payload)
+					elif peap.flags == 0 and conn_string in self.fragment_buffer:
+						peap = PEAP(''.join([x.do_build() for x in self.fragment_buffer[conn_string]]) + peap.payload.do_build())	# take that people trying to read my code! Spencer 1, you 0.
+						del self.fragment_buffer[conn_string]
+					if peap.haslayer('TLSv1Certificate'):				# at this point, if possible, we should have a fully assembled peap packet
+						cert_layer = peap.getlayer(TLSv1Certificate)
+							
 			else:
 				if eaptype == 1 and 'identity' in fields:
 					client.addIdentity(1, fields['identity'])
 				if packet.haslayer('LEAP'):
-					leap_fields = packet.getlayer('EAP').payload.fields
+					leap_fields = packet.getlayer(LEAP).fields
 					if 'name' in leap_fields:
 						identity = leap_fields['name']
 						if identity:
@@ -427,11 +412,63 @@ class EapeakParsingEngine:
 						client.addMSChapInfo(17, response = leap_fields['data'], identity = leap_fields['name'])
 					del leap_fields
 			network.addClient(client)
-			shouldStop = True
+			if not cert_layer:
+				shouldStop = True
 		if shouldStop:
 			return
+			
+		if cert_layer and 'certificate' in cert_layer.fields:
+			cert_data = cert_layer.certificate[3:]
+			tmp_certs = []
+			while cert_data:
+				if len(cert_data) < 4: break								# length and 1 byte are at least 4 bytes
+				tmp_length = unpack('!I', '\x00' + cert_data[:3])[0]
+				cert_data = cert_data[3:]
+				if len(cert_data) < tmp_length: break						# I smell corruption
+				tmp_certs.append(cert_data[:tmp_length])
+				cert_data = cert_data[tmp_length:]
+			for certificate in tmp_certs:
+				try:
+					certificate = X509.load_cert_string(certificate, X509.FORMAT_DER)
+				except X509.X509Error:
+					pass
+				network.addCertificate(certificate)
 		return
 
+class CursesEapeakParsingEngine(EapeakParsingEngine):
+	"""
+	This engine contains additional methods necessary for the Curses UI.
+	It is seperate from the other class to not degrade performance when
+	Curses is not being used.
+	"""
+	def initCurses(self):
+		self.user_marker_pos = 1							# used with curses
+		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
+		self.curses_row_offset_store = 0					# used for storing the row offset when switching from detailed to non-detailed view modes
+		self.curses_detailed = None							# used with curses
+		self.screen = curses.initscr()
+		curses.start_color()
+		curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_WHITE)
+		size = self.screen.getmaxyx()
+		if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
+			curses.endwin()
+			return 1
+		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
+		self.curses_max_columns = size[1] - 2
+		
+		self.screen.border(0)
+		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
+		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
+		self.screen.addstr(4, TAB_LENGTH, 'Processed 0 Packets')
+		self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
+		self.screen.refresh()
+		curses.curs_set(0)
+		curses.noecho()
+		curses.cbreak()
+		self.curses_enabled = True
+		self.curses_lower_refresh_counter = 1
+		return 0
+		
 	def cursesInteractionHandler(self, garbage = None):
 		while self.curses_enabled:
 			c = self.screen.getch()
@@ -662,6 +699,13 @@ class EapeakParsingEngine:
 				pass
 		self.cleanupCurses()
 		return
+		
+	def parseLiveCapture(self, packet, quite = True):
+		self.parseWirelessPacket(packet)
+		if self.curses_enabled or quite:
+			return
+		sys.stdout.write('Packets: ' + str(self.packetCounter) + ' Wireless Networks: ' + str(len(self.KnownNetworks)) + '\r')
+		sys.stdout.flush()
 				
 	def resizeDialog(self):
 		self.curses_lower_refresh_counter = 0
@@ -681,3 +725,11 @@ class EapeakParsingEngine:
 		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
 		self.curses_max_columns = size[1] - 2
 		return True
+		
+	def cleanupCurses(self):
+		if not self.curses_enabled: return
+		self.screen.erase()
+		del self.screen
+		curses.endwin()
+		curses.echo()
+		self.curses_enabled = False

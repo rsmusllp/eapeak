@@ -41,7 +41,7 @@
 
 __version_major__ = '0'
 __version_minor__ = '1'
-__version_build__ = '0'
+__version_build__ = '1'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
@@ -78,7 +78,8 @@ def main():
 						]
 
 	for layer in not_needed_layers:
-		conf.load_layers.remove(layer)
+		if layer in conf.load_layers:
+			conf.load_layers.remove(layer)
 	del layer, not_needed_layers
 	conf.ipv6_enabled = False
 	
@@ -86,9 +87,11 @@ def main():
 	
 	try:																	# default to the systems libraries
 		from eapeak.parse import EapeakParsingEngine						# revert to ./lib on fail for development
+		from eapeak.parse import CursesEapeakParsingEngine
 	except ImportError:
 		sys.path.append(os.getcwd() + os.sep + 'lib')
 		from eapeak.parse import EapeakParsingEngine
+		from eapeak.parse import CursesEapeakParsingEngine
 	
 	parser = argparse.ArgumentParser(description = 'EAPeak: Analysis tool for EAP enabled wireless networks.', conflict_handler='resolve')
 	parser.add_argument('-f', '--file', dest = 'pcaps', nargs = '*', action = 'store', default = [], help = 'the path to the PCap file(s)')
@@ -136,7 +139,10 @@ def main():
 	scapy_runtime_log = logging.getLogger("scapy.runtime")
 	scapy_runtime_log.setLevel(logging.ERROR)
 	
-	eapeakParser = EapeakParsingEngine(targetSSIDs)
+	if use_curses:
+		eapeakParser = CursesEapeakParsingEngine(targetSSIDs)
+	else:
+		eapeakParser = EapeakParsingEngine(targetSSIDs)
 	del targetSSIDs
 	
 	xmlFiles = []
@@ -178,7 +184,9 @@ def main():
 			except KeyboardInterrupt:
 				break
 			except socketError:
-				print 'Invalid Interface'
+				if use_curses:
+					eapeakParser.cleanupCurses()
+				print 'Error: Invalid Interface'
 				return 0
 			except select_error:
 				if use_curses and not eapeakParser.curses_enabled:
