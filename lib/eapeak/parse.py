@@ -554,21 +554,24 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				else:
 					network = self.KnownNetworks.values()[self.user_marker_pos - 1 + self.curses_row_offset]
 				filename = network.ssid + '_users.txt'
-				for client in network.clients.values():
-					usernames.extend(client.identities.keys())
-				try:
-					filehandle = open(filename, 'w')
-					filehandle.write("\n".join(usernames) + '\n')
-					filehandle.close()
-					message = 'Successfully Saved'
-				except:
-					message = 'Failed To Save'
+				if network.clients:
+					for client in network.clients.values():
+						usernames.extend(client.identities.keys())
+					try:
+						filehandle = open(filename, 'w')
+						filehandle.write("\n".join(usernames) + '\n')
+						filehandle.close()
+						message = 'Successfully Saved'
+					except:
+						message = 'Failed To Save'
+				else:
+					message = 'No ID Strings'
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
+				subwindow.erase()
 				subwindow.addstr(2, 2, 'File: ' + filename)
 				subwindow.addstr(3, 2, message)
 				subwindow.addstr(6, 8, 'Press Any Key To Continue')
-				subwindow.clrtobot()
 				subwindow.border(0)
 				subwindow.refresh()
 				subwindow.overlay(self.screen)
@@ -695,7 +698,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					self.screen.addnstr(line, TAB_LENGTH * message[0], message[1], self.curses_max_columns - TAB_LENGTH * message[0])
 					line += 1
 					if line > self.curses_max_rows: break	# fail safe
-			except _curses.error:
+			except curses.error:
 				pass
 		self.cleanupCurses()
 		return
