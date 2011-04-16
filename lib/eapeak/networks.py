@@ -108,9 +108,10 @@ class WirelessNetwork:
 			output += '\tCertificates:\n'
 			i = 1
 			for cert in self.x509certs:
-				output += '\n\tCertificate #' + str(i) + '\n'
+				output += '\n\tCertificate #' + str(i) + '\n\t'
 				output += "\n\t".join(cert.as_text().split('\n')[1:])
 				output += '\n'
+				i += 1
 		return output[:-1]
 		
 	def updateSSID(self, ssid):

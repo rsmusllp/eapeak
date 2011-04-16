@@ -69,7 +69,7 @@ USER_MARKER = '=> '
 USER_MARKER_OFFSET = 8
 SSID_MAX_LENGTH = 32
 from scapy.layers.l2 import eap_types as EAP_TYPES
-from scapy.layers.l2 import LEAP, EAP_Fast, EAP_TLS, EAP_TTLS, PEAP
+from scapy.layers.l2 import EAP, EAP_TLS, LEAP, EAP_TTLS, PEAP, EAP_Fast
 from scapy.layers.ssl import TLSv1RecordLayer, TLSv1ClientHello, TLSv1ServerHello, TLSv1ServerHelloDone, TLSv1KeyExchange, TLSv1Certificate
 EAP_TYPES[0] = 'NONE'
 
@@ -383,22 +383,22 @@ class EapeakParsingEngine:
 					if 'data' in leap_fields and len(leap_fields['data']) == 8:
 						client.addMSChapInfo(17, challenge = leap_fields['data'], identity = leap_fields['name'])
 					del leap_fields
-				elif packet.haslayer('PEAP'):
-					peap = packet.getlayer(PEAP)
-					if not 'flags' in peap.fields:
-						return # this data is broken
+				elif packet.getlayer(EAP).payload.name in ['EAP_TLS', 'EAP_TTLS', 'PEAP', 'EAP_Fast']:
+					eap_layer = packet.getlayer(EAP).payload
 					conn_string = bssid + ' ' + client_mac
-					if peap.flags & 16 and peap.flags & 32:				# start of new fragmented chain
-						self.fragment_buffer[conn_string] = [peap]		# initialize new buffer, nevermind if one existed already
-					elif peap.flags & 16:								# continuation of fragmented chain
+					frag_flag, len_flag = {'EAP_TLS':(64, 128), 'EAP_TTLS':(8, 16), 'PEAP':(16, 32), 'EAP_Fast':(8, 16)}[eap_layer.name]
+					if eap_layer.flags & frag_flag and eap_layer.flags & len_flag:
+						self.fragment_buffer[conn_string] = [eap_layer]
+					elif eap_layer.flags & frag_flag:
 						if conn_string in self.fragment_buffer:
-							self.fragment_buffer[conn_string].append(peap.payload)
-					elif peap.flags == 0 and conn_string in self.fragment_buffer:
-						peap = PEAP(''.join([x.do_build() for x in self.fragment_buffer[conn_string]]) + peap.payload.do_build())	# take that people trying to read my code! Spencer 1, you 0.
+							self.fragment_buffer[conn_string].append(eap_layer.payload)
+					elif eap_layer.flags == 0 and conn_string in self.fragment_buffer:
+						eap_layer = eap_layer.__class__(''.join([x.do_build() for x in self.fragment_buffer[conn_string]]) + eap_layer.payload.do_build())	# take that people trying to read my code! Spencer 1, you 0.
 						del self.fragment_buffer[conn_string]
-					if peap.haslayer('TLSv1Certificate'):				# at this point, if possible, we should have a fully assembled peap packet
-						cert_layer = peap.getlayer(TLSv1Certificate)
-							
+					if eap_layer.haslayer('TLSv1Certificate'):			# at this point, if possible, we should have a fully assembled peap packet
+						cert_layer = eap_layer.getlayer(TLSv1Certificate)
+					del eap_layer, conn_string, frag_flag, len_flag
+
 			else:
 				if eaptype == 1 and 'identity' in fields:
 					client.addIdentity(1, fields['identity'])
