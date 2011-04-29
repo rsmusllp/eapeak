@@ -51,13 +51,59 @@ class SSIDBroadcaster(threading.Thread):
 		self.bssid = bssid
 		
 		self.broadcast_interval = 0.1
-		self.channel = 6
+		self.channel = "\x06"
 		self.__shutdown__ = False
 		
 	def run(self):
 		while not self.__shutdown__:
 			sendp(RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap="ESS+short-slot")/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x24\x30\x48\x6c')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID="TIM",info="\x00\x01\x00\x00")/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60"), iface=self.interface, verbose=False)
 			sleep(self.broadcast_interval)
+			
+class ClientListener(threading.Thread):
+	"""
+	This object is a thread-friendly listener for Client connection
+	attempts.  If an ESSID and BSSID are not set then it will respond
+	to all probe requrests until the back log is full.
+	"""
+	def __init__(self, interface, backlog, callback, essid = None):
+		threading.Thread.__init__(self)
+		self.interface = interface
+		self.backlog = backlog
+		self.callback = callback
+		self.essid = essid
+		
+		self.lastpacket = None
+		self.__shutdown__ = False
+		
+	def __stopfilter__(self, packet):
+		if not packet.haslayer('Dot11ProbeReq'):
+			return False
+				
+		if self.essid:
+			layer = packet.getlayer(Dot11Elt)
+			while layer:
+				if 'id' in layer.fields and layer.id == 0:
+					if self.essid != layer.info:
+						return False
+					break
+				layer = layer.payload
+			if layer == None:	# we didn't find an ESSID
+				return False
+				
+		self.lastpacket = packet
+		return True
+		
+	def run(self):
+		while not self.__shutdown__:
+			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+			if self.lastpacket:
+				layer = self.lastpacket.getlayer(Dot11Elt)
+				while layer:
+					if 'id' in layer.fields and layer.id == 0:
+						break
+					layer = layer.payload
+				self.callback(getSource(self.lastpacket), layer.info)
+				self.lastpacket = None
 
 class WirelessStateMachine:
 	"""
@@ -148,10 +194,11 @@ class WirelessStateMachine:
 		self.connected = False
 		return 0
 		
-	def listen(self, backlog, essid, broadcast_interval = 0.1):
-		self.ssid_broadcaster = SSIDBroadcaster(self.interface, essid, self.bssid)
-		self.ssid_broadcaster.broadcast_interval = broadcast_interval
-		self.ssid_broadcaster.start()
+	def listen(self, backlog, essid = None, broadcast_interval = 0.1):
+		if essid:
+			self.ssid_broadcaster = SSIDBroadcaster(self.interface, essid, self.bssid)
+			self.ssid_broadcaster.broadcast_interval = broadcast_interval
+			self.ssid_broadcaster.start()
 		
 	def recv(self):
 		"""
@@ -176,7 +223,8 @@ class WirelessStateMachine:
 
 class WirelessStateMachineEAP(WirelessStateMachine):
 	"""
-	This is to keep the EAP functionality seperate so the core State Machine can be repurposed for other projects.
+	This is to keep the EAP functionality seperate so the core State-
+	Machine can be repurposed for other projects.
 	"""
 	def check_eap_type(self, eaptype):
 		"""

@@ -25,21 +25,10 @@
 """
 
 from scapy.layers.l2 import eap_types as EAP_TYPES
+from xml.sax.saxutils import escape as XMLEscape
 from M2Crypto import X509
 EAP_TYPES[0] = 'NONE'
 
-def XMLEscape(string):
-	string = str(string)
-	escapes = {
-			'"' : '&quot;',
-			'\'': '&apos;',
-			'<': '&lt;',
-			'>': '&gt;',
-			'&': '&amp;'
-		}
-	for bad, good in escapes.items():
-		string = string.replace(bad, good)
-	return string
 
 class WirelessNetwork:
 	ssid = ''	# this is unique
@@ -60,6 +49,10 @@ class WirelessNetwork:
 			self.bssids.append(bssid)
 			
 	def addCertificate(self, certificate):
+		"""
+		Certificates are either packed binary strings in DER format, or
+		instances of m2crypto.X509.X509
+		"""
 		if not isinstance(certificate, X509.X509):
 			try:
 				certificate = X509.load_cert_string(certificate, X509.FORMAT_DER)
@@ -76,18 +69,28 @@ class WirelessNetwork:
 			self.clients[clientobj.mac] = clientobj
 			
 	def hasClient(self, client_mac):
+		"""
+		Checks that a client has been seen with this network.
+		"""
 		if client_mac in self.clients.keys():
 			return True
 		else:
 			return False
 	
 	def getClient(self, client_mac):
+		"""
+		Returns a client associated with the give MAC address.
+		"""
 		if client_mac in self.clients.keys():
 			return self.clients[client_mac]
 		else:
 			return None
 		
 	def show(self):
+		"""
+		This returns a string of human readable information describing
+		the network object.
+		"""
 		output = 'SSID: ' + self.ssid + '\n'
 		if self.bssids:
 			output += 'BSSIDs:\n\t' + "\n\t".join(self.bssids) + '\n'
@@ -118,6 +121,9 @@ class WirelessNetwork:
 		self.ssid = ssid
 
 	def getXML(self):
+		"""
+		This returns the XML representation of the client object.
+		"""
 		from xml.etree import ElementTree
 		root = ElementTree.Element('wireless-network')
 		for bssid in self.bssids:
@@ -133,7 +139,7 @@ class WirelessNetwork:
 		for client in self.clients.values():
 			root.append(client.getXML())
 		for cert in self.x509certs:
-			tmp = Element.SubElement(root, 'Certificates').text = cert.as_der()
+			tmp = ElementTree.SubElement(root, 'Certificates').text = cert.as_der()
 			tmp.set('encoding', 'DER')
 			
 		return root

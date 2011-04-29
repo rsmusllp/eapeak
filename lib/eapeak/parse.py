@@ -119,14 +119,21 @@ def getDestination(packet):
 	return None
 	
 def mergeWirelessNetworks(source, destination):
+	"""
+	Merge information of two wireless networks, used to preserve
+	information when one is un-orphaned.
+	"""
 	for bssid in source.bssids:
 		destination.addBSSID(bssid)
 	
 	for mac, clientobj in source.clients.items():
 		destination.addClient(clientobj)
 		
-	for eapType in source.eapTypes:
-		destination.addEapType(eapType)
+	for eaptype in source.eapTypes:
+		destination.addEapType(eaptype)
+		
+	for cert in source.x509certs:
+		destination.addCertificate(cert)
 	return destination
 
 class EapeakParsingEngine:
@@ -150,6 +157,15 @@ class EapeakParsingEngine:
 		sys.stdout.flush()
 		
 	def parsePCapFiles(self, pcapFiles, quite = True):
+		"""
+		Take one more more (list, or tuple) of pcap files and parse them
+		into the engine.
+		"""
+		if not hasattr(pcapFiles, '__iter__'):
+			if isinstance(pcapFiles, str):
+				pcapFiles = [ pcapFiles ]
+			else:
+				return
 		for i in range(0, len(pcapFiles)):
 			pcap = pcapFiles[i]
 			pcapName = os.path.split(pcap)[1]
@@ -190,6 +206,15 @@ class EapeakParsingEngine:
 			self.fragment_buffer = {}
 			
 	def parseXMLFiles(self, xmlFiles, quite = True):
+		"""
+		Load EAPeak/Kismet style XML files for information.  This is
+		faster than parsing large PCap files.
+		"""
+		if not hasattr(xmlFiles, '__iter__'):
+			if isinstance(xmlFiles, str):
+				xmlFiles = [ xmlFiles ]
+			else:
+				return
 		for xmlfile in xmlFiles:
 			if not os.path.isfile(xmlfile):
 				if not quite:
@@ -273,6 +298,10 @@ class EapeakParsingEngine:
 			sys.stdout.flush()
 	
 	def exportXML(self, filename = XML_FILE_NAME):
+		"""
+		Exports an XML file that can be reimported with the parseXMLFiles
+		function.
+		"""
 		eapeakXML = ElementTree.Element('detection-run')
 		eapeakXML.set('eapeak-version', __version__)
 		eapeakXML.append(ElementTree.Comment(' Summary: Found ' + str(len(self.KnownNetworks)) + ' Network(s) '))
@@ -289,6 +318,10 @@ class EapeakParsingEngine:
 			tmpfile.close()
 						
 	def parseWirelessPacket(self, packet):
+		"""
+		This is the core packet parsing routine.  It takes a scapy style
+		packet object as an argument.
+		"""
 		if packet.name == 'RadioTap dummy':
 			packet = packet.payload										# offset it so we start with the Dot11 header
 		shouldStop = False
@@ -442,6 +475,9 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 	Curses is not being used.
 	"""
 	def initCurses(self):
+		"""
+		This initializes the screen for curses useage.
+		"""
 		self.user_marker_pos = 1							# used with curses
 		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
 		self.curses_row_offset_store = 0					# used for storing the row offset when switching from detailed to non-detailed view modes
@@ -470,6 +506,10 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		return 0
 		
 	def cursesInteractionHandler(self, garbage = None):
+		"""
+		This is a function meant to be run in a thread to handle human
+		interaction with the curses interface.
+		"""
 		while self.curses_enabled:
 			c = self.screen.getch()
 			if self.curses_lower_refresh_counter == 0:
@@ -581,6 +621,10 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		return
 					
 	def cursesScreenDrawHandler(self, save_to_xml):
+		"""
+		This is a function meant to be run in a thread to handle drawing
+		the curses interface to the screen.
+		"""
 		while self.curses_enabled:
 			sleep(CURSES_REFRESH_FREQUENCY)
 			if self.curses_lower_refresh_counter == 0:	# used to trigger pauses
@@ -704,6 +748,10 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		return
 		
 	def parseLiveCapture(self, packet, quite = True):
+		"""
+		This is a modified version of the parseLiveCapture function to 
+		stay quite if the curses interface is in use.
+		"""
 		self.parseWirelessPacket(packet)
 		if self.curses_enabled or quite:
 			return
@@ -711,6 +759,10 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		sys.stdout.flush()
 				
 	def resizeDialog(self):
+		"""
+		This is a dialog to be used to warn the user when a screen
+		resize event has been used to make the screen to small for use.
+		"""
 		self.curses_lower_refresh_counter = 0
 		size = self.screen.getmaxyx()
 		self.screen.erase()
@@ -730,6 +782,10 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		return True
 		
 	def cleanupCurses(self):
+		"""
+		This cleans up the curses interface and resets things back to
+		normal.
+		"""
 		if not self.curses_enabled: return
 		self.screen.erase()
 		del self.screen

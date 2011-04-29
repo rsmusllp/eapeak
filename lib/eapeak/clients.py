@@ -26,20 +26,8 @@
 
 from scapy.layers.l2 import eap_types as EAP_TYPES
 from binascii import hexlify
+from xml.sax.saxutils import escape as XMLEscape
 EAP_TYPES[0] = 'NONE'
-
-def XMLEscape(string):
-	string = str(string)
-	escapes = {
-			'"' : '&quot;',
-			'\'': '&apos;',
-			'<': '&lt;',
-			'>': '&gt;',
-			'&': '&amp;'
-		}
-	for bad, good in escapes.items():
-		string = string.replace(bad, good)
-	return string
 
 class WirelessClient:
 	authenticated = False
@@ -54,17 +42,22 @@ class WirelessClient:
 		self.datastore = {}												# I love metasploit
 		self.mschap = []												# holds respObj dictionaries, keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
 	
-	def addEapType(self, eapType):
-		if eapType not in self.eapTypes and eapType > 4:
-			self.eapTypes.append(eapType)
+	def addEapType(self, eaptype):
+		if eaptype not in self.eapTypes and eaptype > 4:
+			self.eapTypes.append(eaptype)
 
 	def addIdentity(self, eaptype, identity):
+		"""
+		Adds identity strings with their associated EAP type that they
+		were discovered with.
+		"""
 		if not identity in self.identities.keys() and identity:
 			self.identities[identity] = eaptype
 			
 	def addMSChapInfo(self, eaptype, challenge = None, response = None, identity = None):
 		"""
-		Challenge and Response strings are packed binary, NOT 00:00:00:00:00:00:00
+		Challenge and Response strings are packed binary,
+		NOT 00:00:00:00:00:00:00
 		"""
 		if not identity:
 			identity = 'UNKNOWN'
@@ -90,6 +83,10 @@ class WirelessClient:
 				return 2												# we seem to have received 2 response strings without a challenge in between
 
 	def show(self, tabs = 0):
+		"""
+		This returns a string of human readable information describing
+		the client object, tabs is an optional offset.
+		"""
 		output = ('\t' * tabs) + 'MAC: ' + self.mac + '\n'
 		output += ('\t' * tabs) + 'Associated BSSID: ' + self.bssid + '\n'
 		
@@ -119,6 +116,9 @@ class WirelessClient:
 		return output
 
 	def getXML(self):
+		"""
+		This returns the XML representation of the client object.
+		"""
 		from xml.etree import ElementTree
 		root = ElementTree.Element('wireless-client')
 		ElementTree.SubElement(root, 'client-mac').text = self.mac
