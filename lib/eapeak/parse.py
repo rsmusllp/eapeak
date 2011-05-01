@@ -39,6 +39,7 @@ from binascii import unhexlify
 from time import sleep
 from xml.dom import minidom
 from xml.etree import ElementTree
+from base64 import standard_b64decode as b64decode
 from M2Crypto import X509
 
 from scapy.utils import rdpcap
@@ -690,12 +691,16 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 						for ident, eap in client.identities.items():
 							messages.append([4, '(' + EAP_TYPES[eap] + ') ' + ident])
 						if client.mschap:
-							messages.append([3, 'MSChap:'])
+							first = True
 							for value in client.mschap:
 								if not 'r' in value: continue
+								if first:
+									messages.append([3, 'MSChap:'])
+									first = False
 								messages.append([4, 'EAP Type: ' + EAP_TYPES[value['t']] + ', Identity: ' + value['i']])
 								messages.append([4, 'C: ' + value['c']])
 								messages.append([4, 'R: ' + value['r']])
+							del first
 						messages.append(CURSES_LINE_BREAK)
 					messages.pop()	# trash the last trailing line break
 					del clients

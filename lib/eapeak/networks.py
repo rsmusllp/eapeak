@@ -26,6 +26,7 @@
 
 from scapy.layers.l2 import eap_types as EAP_TYPES
 from xml.sax.saxutils import escape as XMLEscape
+from base64 import standard_b64encode as b64encode
 from M2Crypto import X509
 EAP_TYPES[0] = 'NONE'
 
@@ -59,6 +60,7 @@ class WirelessNetwork:
 			except:
 				return 1
 		self.x509certs.append(certificate)
+		return 0
 			
 	def addEapType(self, eapType):
 		if eapType not in self.eapTypes and eapType not in [1, 3]:
@@ -111,10 +113,27 @@ class WirelessNetwork:
 			output += '\tCertificates:\n'
 			i = 1
 			for cert in self.x509certs:
-				output += '\n\tCertificate #' + str(i) + '\n\t'
-				output += "\n\t".join(cert.as_text().split('\n')[1:])
+				output += '\n\tCertificate #' + str(i)
+				output += '\n\tExpiration Date: ' + str(cert.get_not_after())
+				data = cert.get_issuer()
+				output += '\n\tIssuer:'
+				for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
+					output += '\n\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
+				for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
+					output += '\n\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
+				
+				data = cert.get_subject()
+				output += '\n\tSubject:'
+				for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
+					output += '\n\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
+				for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
+					output += '\n\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
+				key_size = (cert.get_pubkey().size()) * 8
+				del data
+				cert.as_text()
 				output += '\n'
 				i += 1
+			del cert
 		return output[:-1]
 		
 	def updateSSID(self, ssid):
@@ -139,7 +158,8 @@ class WirelessNetwork:
 		for client in self.clients.values():
 			root.append(client.getXML())
 		for cert in self.x509certs:
-			tmp = ElementTree.SubElement(root, 'Certificates').text = cert.as_der()
+			tmp = ElementTree.SubElement(root, 'Certificates')
+			tmp.text = b64encode(cert.as_der())
 			tmp.set('encoding', 'DER')
 			
 		return root
