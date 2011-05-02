@@ -24,7 +24,7 @@
 		
 """
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 import os
 import sys
@@ -285,6 +285,11 @@ class EapeakParsingEngine:
 							mschap.get('identity')
 						)
 					newNetwork.addClient(newClient)
+				for cert in network.findall('certificate'):
+					if cert.get('encoding') == 'DER':
+						newNetwork.addCertificate(X509.load_cert_string(b64decode(cert.text.strip()), X509.FORMAT_DER))
+					elif cert.get('encoding') == 'PEM':
+						newNetwork.addCertificate(X509.load_cert_string(b64decode(cert.text.strip()), X509.FORMAT_PEM))
 				if ssid != UNKNOWN_SSID_NAME:
 					self.KnownNetworks[ssid] = newNetwork
 				else:
@@ -668,13 +673,11 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 						else:
 							tmpEapTypes.append(str(eType))
 				messages.append(CURSES_LINE_BREAK)
-				
 				if tmpEapTypes:
 					messages.append([2, 'EAP Types: ' + ", ".join(tmpEapTypes)])
 				else:
 					messages.append([2, 'EAP Types: [ NONE ]'])
 				messages.append(CURSES_LINE_BREAK)
-				
 				if network.clients:
 					messages.append([2, 'Clients:         '])
 					clients = network.clients.values()
@@ -702,10 +705,32 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 								messages.append([4, 'R: ' + value['r']])
 							del first
 						messages.append(CURSES_LINE_BREAK)
-					messages.pop()	# trash the last trailing line break
+					messages.pop()	# trash the trailing line break
 					del clients
 				else:
 					messages.append([2, 'Clients: [ NONE ]'])
+				if network.x509certs:
+					messages.append([2, 'Certificates:'])
+					i = 1
+					for cert in network.x509certs:
+						messages.append([3, 'Certificate #' + str(i) + ' Expiration Date: ' + str(cert.get_not_after())])
+						data = cert.get_issuer()
+						messages.append([3, 'Issuer:'])
+						for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
+							messages.append([4, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()])
+						for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
+							messages.append([4, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()])
+						data = cert.get_subject()
+						messages.append([3, 'Subject:'])
+						for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
+							messages.append([4, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()])
+						for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
+							messages.append([4, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()])
+						del data
+						i += 1
+						messages.append(CURSES_LINE_BREAK)
+					messages.pop() # trash the trailing line break
+				# message queue is built, now adjust it to be printed to the screen
 				max_offset = len(messages) - (self.curses_max_rows - 7)
 				if max_offset < 0:
 					max_offset = 0

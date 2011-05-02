@@ -6,7 +6,8 @@ EAPeak - Analysis tool for EAP enabled wireless networks.
 .SH SYNOPSIS
 eapeak [-h] [-f [PCAPS [PCAPS ...]]]
        [-s [TARGET_SSIDS [TARGET_SSIDS ...]]] [-l] [-c] [-i INTERFACE]
-       [-v] [--no-xml]
+       [-v] [--no-xml] [--export-x509]
+       [--x509-format {der,pem}]
 
 .SH DESCRIPTION
 EAPeak is an open source tool to facilitate auditing of wireless
@@ -24,7 +25,8 @@ to support.
 .SH OPTIONS 
 usage: eapeak [-h] [-f [PCAPS [PCAPS ...]]]
               [-s [TARGET_SSIDS [TARGET_SSIDS ...]]] [-l] [-c] [-i INTERFACE]
-              [-v] [--no-xml]
+              [-v] [--no-xml] [--export-x509]
+              [--x509-format {der,pem}]
 
 EAPeak: Analyze Wireless PCaps
 
@@ -39,7 +41,10 @@ optional arguments:
   -i INTERFACE, --iface INTERFACE
                         interface to use when capturing live
   -v, --version         show program's version number and exit
-  --no-xml              dont store xml data
+  --no-xml              dont store xml data when capturing live
+  --export-x509         start EAPeak certificate export wizard
+  --x509-format {der,pem}
+                        format to save certificates as, default: pem
 
 .SH RESOURCES
 EAPeak relies on the Scapy libraries from the community repository.

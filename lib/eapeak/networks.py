@@ -130,7 +130,6 @@ class WirelessNetwork:
 					output += '\n\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
 				key_size = (cert.get_pubkey().size()) * 8
 				del data
-				cert.as_text()
 				output += '\n'
 				i += 1
 			del cert
@@ -158,7 +157,7 @@ class WirelessNetwork:
 		for client in self.clients.values():
 			root.append(client.getXML())
 		for cert in self.x509certs:
-			tmp = ElementTree.SubElement(root, 'Certificates')
+			tmp = ElementTree.SubElement(root, 'certificate')
 			tmp.text = b64encode(cert.as_der())
 			tmp.set('encoding', 'DER')
 			
