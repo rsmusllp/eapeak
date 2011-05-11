@@ -43,7 +43,7 @@ class WirelessNetwork:
 		
 		if bssid:
 			self.bssids.append(bssid)
-		self.datastore = {}	# I love metasploit
+		#self.datastore = {}	# I love metasploit
 			
 	def addBSSID(self, bssid):
 		if bssid not in self.bssids:
@@ -59,6 +59,12 @@ class WirelessNetwork:
 				certificate = X509.load_cert_string(certificate, X509.FORMAT_DER)
 			except:
 				return 1
+				
+		newFingerprint = certificate.get_fingerprint()
+		for oldcert in self.x509certs:
+			if newFingerprint == oldcert.get_fingerprint():
+				return -1
+				
 		self.x509certs.append(certificate)
 		return 0
 			
@@ -102,7 +108,7 @@ class WirelessNetwork:
 				if eapType in EAP_TYPES.keys():
 					output += '\t\t' + EAP_TYPES[eapType] + '\n'
 				else:
-					output += '\t\tEAP Code: ' + str(eapType) + '\n'
+					output += '\t\tEAP Type: ' + str(eapType) + '\n'
 		if self.clients:
 			output += '\tClient Data:\n'
 			i = 1

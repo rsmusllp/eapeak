@@ -312,9 +312,9 @@ class EapeakParsingEngine:
 		eapeakXML.set('eapeak-version', __version__)
 		eapeakXML.append(ElementTree.Comment(' Summary: Found ' + str(len(self.KnownNetworks)) + ' Network(s) '))
 		networks = self.KnownNetworks.keys()
-		networks.sort()
 		if not networks:
 			return
+		networks.sort()
 		for network in networks:
 			eapeakXML.append(self.KnownNetworks[network].getXML())
 		xmldata = minidom.parseString(ElementTree.tostring( eapeakXML )).toprettyxml()
@@ -555,17 +555,18 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 						self.user_marker_pos += 1
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			elif c in [10, 105, 73]:	# 105 = ord('i')
-				tmp = self.curses_row_offset_store
-				self.curses_row_offset_store = self.curses_row_offset
-				self.curses_row_offset = tmp
+				self.curses_row_offset_store = (self.curses_row_offset_store ^ self.curses_row_offset)
+				self.curses_row_offset = (self.curses_row_offset ^ self.curses_row_offset_store)
+				self.curses_row_offset_store = (self.curses_row_offset_store ^ self.curses_row_offset)
 				if self.curses_detailed:
 					self.curses_detailed = None
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 					self.screen.refresh()
-				else:
+					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
+				elif 0 <= (self.user_marker_pos - 1 + self.curses_row_offset) < len(self.KnownNetworks):
 					self.curses_detailed = self.KnownNetworks.keys()[self.user_marker_pos - 1 + self.curses_row_offset]
 					self.screen.refresh()
-				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
+					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
 			elif c in [113, 81]:		# 113 = ord('q')
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(6, 40, (self.curses_max_rows / 2 - 3), (self.curses_max_columns / 2 - 20))
@@ -672,6 +673,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 							tmpEapTypes.append(EAP_TYPES[eType])
 						else:
 							tmpEapTypes.append(str(eType))
+				del
 				messages.append(CURSES_LINE_BREAK)
 				if tmpEapTypes:
 					messages.append([2, 'EAP Types: ' + ", ".join(tmpEapTypes)])
@@ -686,7 +688,14 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 						messages.append([3, 'Client #' + str(i + 1) ])
 						messages.append([3, 'MAC: ' + client.mac])
 						if client.eapTypes:
-							messages.append([3, 'EAP Types: ' + ", ".join([EAP_TYPES[y] for y in client.eapTypes])])
+							tmpEapTypes = []
+							for y in client.eapTypes:
+								if y in EAP_TYPES:
+									tmpEapTypes.append(EAP_TYPES[y])
+								else:
+									tmpEapTypes.append(str(y))
+							messages.append([3, 'EAP Types: ' + ", ".join(tmpEapTypes)
+							del tmpEapTypes
 						else:
 							messages.append([3, 'EAP Types: [ UNKNOWN ]'])
 						if client.identities:
@@ -710,6 +719,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				else:
 					messages.append([2, 'Clients: [ NONE ]'])
 				if network.x509certs:
+					messages.append(CURSES_LINE_BREAK)
 					messages.append([2, 'Certificates:'])
 					i = 1
 					for cert in network.x509certs:
