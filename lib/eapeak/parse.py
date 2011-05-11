@@ -38,6 +38,7 @@ from struct import unpack
 from binascii import unhexlify
 from time import sleep
 from xml.dom import minidom
+from datetime import datetime
 from xml.etree import ElementTree
 from base64 import standard_b64decode as b64decode
 from M2Crypto import X509
@@ -65,6 +66,9 @@ CURSES_LOWER_REFRESH_FREQUENCY = 5	# frequency of CURSES_REFRESH_FREQUENCY, also
 CURSES_MIN_X = 99					# minimum screen size
 CURSES_MIN_Y = 25
 TAB_LENGTH = 4						# in spaces
+TAB_DEPTH_2 = 2 * TAB_LENGTH
+TAB_DEPTH_3 = 3 * TAB_LENGTH
+TAB_DEPTH_4 = 4 * TAB_LENGTH
 
 USER_MARKER = '=> '
 USER_MARKER_OFFSET = 8
@@ -311,6 +315,7 @@ class EapeakParsingEngine:
 		eapeakXML = ElementTree.Element('detection-run')
 		eapeakXML.set('eapeak-version', __version__)
 		eapeakXML.append(ElementTree.Comment(' Summary: Found ' + str(len(self.KnownNetworks)) + ' Network(s) '))
+		eapeakXML.append(ElementTree.Comment(datetime.now().strftime(' Created %A %m/%d/%Y %H:%M:%S ')))
 		networks = self.KnownNetworks.keys()
 		if not networks:
 			return
@@ -434,7 +439,7 @@ class EapeakParsingEngine:
 					elif eap_layer.flags == 0 and conn_string in self.fragment_buffer:
 						eap_layer = eap_layer.__class__(''.join([x.do_build() for x in self.fragment_buffer[conn_string]]) + eap_layer.payload.do_build())	# take that people trying to read my code! Spencer 1, you 0.
 						del self.fragment_buffer[conn_string]
-					if eap_layer.haslayer('TLSv1Certificate'):			# at this point, if possible, we should have a fully assembled peap packet
+					if eap_layer.haslayer('TLSv1Certificate'):			# at this point, if possible, we should have a fully assembled packet
 						cert_layer = eap_layer.getlayer(TLSv1Certificate)
 					del eap_layer, conn_string, frag_flag, len_flag
 
@@ -545,10 +550,10 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					self.curses_row_offset += 1
 					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
 				else:
-					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 					if self.user_marker_pos + self.curses_row_offset == len(self.KnownNetworks):
-						pass	# floor
-					elif self.user_marker_pos + USER_MARKER_OFFSET == self.curses_max_rows - 1:
+						continue	# floor
+					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
+					if self.user_marker_pos + USER_MARKER_OFFSET == self.curses_max_rows - 1:
 						self.curses_row_offset += 1
 						self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 					else:
@@ -643,8 +648,8 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				continue
 			self.screen.refresh()
 			self.screen.addstr(2, 4, 'EAPeak Capturing Live')			# this is all static, so don't use the messages queue
-			self.screen.addnstr(3, 4, 'Found ' + str(len(self.KnownNetworks)) + ' Networks', CURSES_MIN_X)
-			self.screen.addnstr(4, 4, "Processed {:,} Packets".format(self.packetCounter), CURSES_MIN_X)
+			self.screen.addnstr(3, 4, 'Found ' + str(len(self.KnownNetworks)) + ' Networks', 25)
+			self.screen.addnstr(4, 4, "Processed {:,} Packets".format(self.packetCounter), 30)
 			self.screen.addstr(6, 4, 'Network Information:')
 			if self.curses_lower_refresh_counter == CURSES_LOWER_REFRESH_FREQUENCY:
 				self.curses_lower_refresh_counter = 1
@@ -660,12 +665,12 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			ssids = self.KnownNetworks.keys()
 			if self.curses_detailed and self.curses_detailed in self.KnownNetworks:
 				network = self.KnownNetworks[ self.curses_detailed ]
-				messages.append([2, 'SSID: ' + network.ssid])
+				messages.append([TAB_LENGTH, 'SSID: ' + network.ssid])
 				messages.append(CURSES_LINE_BREAK)
 				
-				messages.append([2, 'BSSIDs:'])
+				messages.append([TAB_LENGTH, 'BSSIDs:'])
 				for bssid in network.bssids:
-					messages.append([3, bssid])
+					messages.append([TAB_DEPTH_2, bssid])
 				tmpEapTypes = []
 				if network.eapTypes:
 					for eType in network.eapTypes:
@@ -673,20 +678,19 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 							tmpEapTypes.append(EAP_TYPES[eType])
 						else:
 							tmpEapTypes.append(str(eType))
-				del
 				messages.append(CURSES_LINE_BREAK)
 				if tmpEapTypes:
-					messages.append([2, 'EAP Types: ' + ", ".join(tmpEapTypes)])
+					messages.append([TAB_LENGTH, 'EAP Types: ' + ", ".join(tmpEapTypes)])
 				else:
-					messages.append([2, 'EAP Types: [ NONE ]'])
+					messages.append([TAB_LENGTH, 'EAP Types: [ NONE ]'])
+				del tmpEapTypes
 				messages.append(CURSES_LINE_BREAK)
 				if network.clients:
-					messages.append([2, 'Clients:         '])
+					messages.append([TAB_LENGTH, 'Clients:         '])
 					clients = network.clients.values()
 					for i in range(0, len(clients)):
 						client = clients[i]
-						messages.append([3, 'Client #' + str(i + 1) ])
-						messages.append([3, 'MAC: ' + client.mac])
+						messages.append([TAB_DEPTH_2, 'Client ' + str(i + 1) + ') MAC: ' + client.mac])
 						if client.eapTypes:
 							tmpEapTypes = []
 							for y in client.eapTypes:
@@ -694,48 +698,48 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 									tmpEapTypes.append(EAP_TYPES[y])
 								else:
 									tmpEapTypes.append(str(y))
-							messages.append([3, 'EAP Types: ' + ", ".join(tmpEapTypes)
+							messages.append([TAB_DEPTH_2, 'EAP Types: ' + ", ".join(tmpEapTypes)])
 							del tmpEapTypes
 						else:
-							messages.append([3, 'EAP Types: [ UNKNOWN ]'])
+							messages.append([TAB_DEPTH_2, 'EAP Types: [ UNKNOWN ]'])
 						if client.identities:
-							messages.append([3, 'Identities:'])
+							messages.append([TAB_DEPTH_2, 'Identities:'])
 						for ident, eap in client.identities.items():
-							messages.append([4, '(' + EAP_TYPES[eap] + ') ' + ident])
+							messages.append([TAB_DEPTH_3, '(' + EAP_TYPES[eap] + ') ' + ident])
 						if client.mschap:
 							first = True
 							for value in client.mschap:
 								if not 'r' in value: continue
 								if first:
-									messages.append([3, 'MSChap:'])
+									messages.append([TAB_DEPTH_2, 'MSChap:'])
 									first = False
-								messages.append([4, 'EAP Type: ' + EAP_TYPES[value['t']] + ', Identity: ' + value['i']])
-								messages.append([4, 'C: ' + value['c']])
-								messages.append([4, 'R: ' + value['r']])
+								messages.append([TAB_DEPTH_3, 'EAP Type: ' + EAP_TYPES[value['t']] + ', Identity: ' + value['i']])
+								messages.append([TAB_DEPTH_3, 'C: ' + value['c']])
+								messages.append([TAB_DEPTH_3, 'R: ' + value['r']])
 							del first
 						messages.append(CURSES_LINE_BREAK)
 					messages.pop()	# trash the trailing line break
 					del clients
 				else:
-					messages.append([2, 'Clients: [ NONE ]'])
+					messages.append([TAB_LENGTH, 'Clients: [ NONE ]'])
 				if network.x509certs:
 					messages.append(CURSES_LINE_BREAK)
-					messages.append([2, 'Certificates:'])
+					messages.append([TAB_LENGTH, 'Certificates:'])
 					i = 1
 					for cert in network.x509certs:
-						messages.append([3, 'Certificate #' + str(i) + ' Expiration Date: ' + str(cert.get_not_after())])
+						messages.append([TAB_DEPTH_2, 'Certificate ' + str(i) + ') Expiration Date: ' + str(cert.get_not_after())])
 						data = cert.get_issuer()
-						messages.append([3, 'Issuer:'])
+						messages.append([TAB_DEPTH_2, 'Issuer:'])
 						for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
-							messages.append([4, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()])
+							messages.append([TAB_DEPTH_3, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()])
 						for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
-							messages.append([4, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()])
+							messages.append([TAB_DEPTH_3, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()])
 						data = cert.get_subject()
-						messages.append([3, 'Subject:'])
+						messages.append([TAB_DEPTH_2, 'Subject:'])
 						for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
-							messages.append([4, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()])
+							messages.append([TAB_DEPTH_3, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()])
 						for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
-							messages.append([4, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()])
+							messages.append([TAB_DEPTH_3, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()])
 						del data
 						i += 1
 						messages.append(CURSES_LINE_BREAK)
@@ -751,14 +755,14 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					messages.pop(0)
 				self.screen.border(0)
 			else:
-				messages.append([2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 2) + 'EAP Types:'])
+				messages.append([TAB_DEPTH_2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 2) + 'EAP Types:'])
 				if self.curses_row_offset:
-					messages.append([2, '[ MORE ]'])
+					messages.append([TAB_DEPTH_2, '[ MORE ]'])
 				else:
-					messages.append([2, '        '])
+					messages.append([TAB_DEPTH_2, '        '])
 				for i in range(self.curses_row_offset, len(ssids)):
 					if len(messages) > self.curses_max_rows - 8:
-						messages.append([2, '[ MORE ]'])
+						messages.append([TAB_DEPTH_2, '[ MORE ]'])
 						break
 					network = self.KnownNetworks[ssids[i]]
 					tmpEapTypes = []
@@ -769,17 +773,17 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 							else:
 								tmpEapTypes.append(str(eType))
 					if i < 9:
-						messages.append([2, str(i + 1) + ')  ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
+						messages.append([TAB_DEPTH_2, str(i + 1) + ')  ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
 					else:
-						messages.append([2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
+						messages.append([TAB_DEPTH_2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
 				if not len(messages) > self.curses_max_rows - 2:
-					messages.append([2, '        '])
+					messages.append([TAB_DEPTH_2, '        '])
 				self.screen.border(0)
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			line = 7
 			try:
 				for message in messages:
-					self.screen.addnstr(line, TAB_LENGTH * message[0], message[1], self.curses_max_columns - TAB_LENGTH * message[0])
+					self.screen.addnstr(line, message[0], message[1], self.curses_max_columns - message[0])
 					line += 1
 					if line > self.curses_max_rows: break	# fail safe
 			except curses.error:

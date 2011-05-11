@@ -43,7 +43,6 @@ class WirelessNetwork:
 		
 		if bssid:
 			self.bssids.append(bssid)
-		#self.datastore = {}	# I love metasploit
 			
 	def addBSSID(self, bssid):
 		if bssid not in self.bssids:
@@ -116,24 +115,24 @@ class WirelessNetwork:
 				output += '\t\tClient #' + str(i) + '\n' + client.show(2) + '\n'
 				i += 1
 		if self.x509certs:
-			output += '\tCertificates:\n'
+			output += '\tCertificates:'
 			i = 1
 			for cert in self.x509certs:
-				output += '\n\tCertificate #' + str(i)
-				output += '\n\tExpiration Date: ' + str(cert.get_not_after())
+				output += '\n\t\tCertificate #' + str(i)
+				output += '\n\t\tExpiration Date: ' + str(cert.get_not_after())
 				data = cert.get_issuer()
-				output += '\n\tIssuer:'
+				output += '\n\t\tIssuer:'
 				for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
-					output += '\n\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
+					output += '\n\t\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
 				for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
-					output += '\n\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
+					output += '\n\t\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
 				
 				data = cert.get_subject()
-				output += '\n\tSubject:'
+				output += '\n\t\tSubject:'
 				for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
-					output += '\n\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
+					output += '\n\t\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
 				for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
-					output += '\n\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
+					output += '\n\t\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
 				key_size = (cert.get_pubkey().size()) * 8
 				del data
 				output += '\n'
