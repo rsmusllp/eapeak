@@ -28,6 +28,7 @@ from struct import pack, unpack
 from random import randint
 from time import sleep
 import threading
+import Queue
 
 from eapeak.parse import getBSSID, getSource, getDestination
 from ipfunc import getHwAddr
@@ -41,6 +42,7 @@ RESPONSE_TIMEOUT = 1.5	# time to wait for a response
 class SSIDBroadcaster(threading.Thread):
 	"""
 	This object is a thread-friendly SSID broadcaster
+	It's meant to be controlled by the Wireless State Machine
 	"""
 	def __init__(self, interface, essid, bssid = None):
 		threading.Thread.__init__(self)
@@ -48,9 +50,10 @@ class SSIDBroadcaster(threading.Thread):
 		self.essid = essid
 		if not bssid:
 			bssid = getHwAddr(interface)
-		self.bssid = bssid
+		else:
+			self.bssid = bssid.lower()
 		
-		self.broadcast_interval = 0.1
+		self.broadcast_interval = 0.10
 		self.channel = "\x06"
 		self.__shutdown__ = False
 		
@@ -62,47 +65,40 @@ class SSIDBroadcaster(threading.Thread):
 class ClientListener(threading.Thread):
 	"""
 	This object is a thread-friendly listener for Client connection
-	attempts.  If an ESSID and BSSID are not set then it will respond
-	to all probe requrests until the back log is full.
+	attempts.
+	
+	The backlog corresponds to the size of the queue, if the queu is
+	full because the items are not being handled fast enough then new
+	association requests will be dropped and lost.
 	"""
-	def __init__(self, interface, backlog, callback, essid = None):
+	def __init__(self, interface, backlog, bssid = None):
 		threading.Thread.__init__(self)
 		self.interface = interface
 		self.backlog = backlog
-		self.callback = callback
-		self.essid = essid
-		
+		if bssid == None:
+			self.bssid = getHwAddr(interface)
+		else:
+			self.bssid = bssid.lower()
 		self.lastpacket = None
+		self.client_queue = Queue.Queue(self.backlog)	# FIFO
 		self.__shutdown__ = False
 		
 	def __stopfilter__(self, packet):
-		if not packet.haslayer('Dot11ProbeReq'):
+		if not packet.haslayer('Dot11Auth'):
 			return False
-				
-		if self.essid:
-			layer = packet.getlayer(Dot11Elt)
-			while layer:
-				if 'id' in layer.fields and layer.id == 0:
-					if self.essid != layer.info:
-						return False
-					break
-				layer = layer.payload
-			if layer == None:	# we didn't find an ESSID
-				return False
-				
-		self.lastpacket = packet
-		return True
+		if getBSSID(packet) == self.bssid:
+			self.lastpacket = packet
+			return True
+		else:
+			return False
 		
 	def run(self):
 		while not self.__shutdown__:
 			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
 			if self.lastpacket:
-				layer = self.lastpacket.getlayer(Dot11Elt)
-				while layer:
-					if 'id' in layer.fields and layer.id == 0:
-						break
-					layer = layer.payload
-				self.callback(getSource(self.lastpacket), layer.info)
+				clientmac = getSource(self.lastpacket)
+				if not self.client_queue.full():
+					self.client_queue.put(clientmac, False)
 				self.lastpacket = None
 
 class WirelessStateMachine:
@@ -147,8 +143,17 @@ class WirelessStateMachine:
 		return False
 		
 	def accept(self):
+		if self.__shutdown__: return
+		if not hasattr(self, 'client_listener'):
+			self.client_listener = ClientListener(self.interface, self.backlog, self.bssid)
+			self.client_listener.start()
 		while not self.__shutdown__:
-			pass
+			try:
+				clientmac = self.client_listener.client_queue.get(True, 1)
+				return None, clientmac
+			except Queue.Empty:
+				if self.__shutdown__:
+					return None, None
 		
 	def connect(self, essid):
 		"""
@@ -194,7 +199,8 @@ class WirelessStateMachine:
 		self.connected = False
 		return 0
 		
-	def listen(self, backlog, essid = None, broadcast_interval = 0.1):
+	def listen(self, backlog, essid, broadcast_interval = 0.25):
+		self.backlog = backlog
 		if essid:
 			self.ssid_broadcaster = SSIDBroadcaster(self.interface, essid, self.bssid)
 			self.ssid_broadcaster.broadcast_interval = broadcast_interval
@@ -220,6 +226,9 @@ class WirelessStateMachine:
 		if hasattr(self, 'ssid_broadcaster'):
 			self.ssid_broadcaster.__shutdown__ = True
 			self.ssid_broadcaster.join()
+		if hasattr(self, 'client_listener'):
+			self.client_listener.__shutdown__ = True
+			self.client_listener.join()
 
 class WirelessStateMachineEAP(WirelessStateMachine):
 	"""

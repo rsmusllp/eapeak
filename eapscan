@@ -36,7 +36,7 @@ from time import sleep
 from os import getuid
 from eapeak.parse import EapeakParsingEngine
 from eapeak.networks import WirelessNetwork
-from eapeak.inject import WirelessStateMachine
+from eapeak.inject import WirelessStateMachine, WirelessStateMachineEAP
 from ipfunc import sanitizeMAC
 
 try:
@@ -165,7 +165,6 @@ def main():
 	parser = argparse.ArgumentParser(description = 'EAPScan: Actively Enumerate 802.1x Wireless Networks', conflict_handler='resolve')
 	parser.add_argument('-e', '--essid', dest = 'essid', action = 'store', default = '', help = 'target ESSID')
 	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', default = '', help = 'target BSSID')
-	#parser.add_argument('-s', '--smac', dest = 'smac', action = 'store', default = '', help = 'source MAC address')
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'can all EAP types (4-253)')
