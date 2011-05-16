@@ -96,7 +96,7 @@ def eap_scan(interface, bssid, essid, check_range):
 		sys.stdout.flush()
 		tries = 0
 		while tries < 5:
-			statemachine = WirelessStateMachineEAP(interface, bssid, RandMAC('00:*:*:*:*:*').__str__())
+			statemachine = WirelessStateMachineEAP(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
 			errCode = statemachine.connect(essid)
 			if errCode:
 				sleep(ERROR_SLEEP_TIME)
@@ -139,7 +139,7 @@ def check_ap_connection(interface, bssid, essid, quite = True):
 		sys.stdout.flush()
 	tries = 0
 	while tries < 3:
-		statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__())
+		statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
 		errCode = statemachine.connect(essid)
 		if errCode:
 			sleep(ERROR_SLEEP_TIME)
