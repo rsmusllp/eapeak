@@ -21,7 +21,7 @@
 	along with this program; if not, write to the Free Software
 	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 	MA 02110-1301, USA.
-		
+
 """
 
 from struct import pack, unpack
@@ -50,18 +50,23 @@ class SSIDBroadcaster(threading.Thread):
 		self.essid = essid
 		if not bssid:
 			bssid = getHwAddr(interface)
-		else:
-			self.bssid = bssid.lower()
-		
+		self.bssid = bssid.lower()
 		self.broadcast_interval = 0.10
 		self.channel = "\x06"
+		self.capabilities = 'ESS+short-preamble+short-slot'
 		self.__shutdown__ = False
 		
 	def run(self):
 		while not self.__shutdown__:
-			sendp(RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x24\x30\x48\x6c')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID="TIM",info="\x00\x01\x00\x00")/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60"), iface=self.interface, verbose=False)
+			sendp(RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap=self.capabilities)/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x24\x30\x48\x6c')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID="TIM",info="\x00\x01\x00\x00")/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60"), iface=self.interface, verbose=False)
 			sleep(self.broadcast_interval)
 			
+	def setPrivacy(self, value):
+		if value:
+			self.capabilities = 'ESS+privacy+short-preamble+short-slot'
+		else:
+			self.capabilities = 'ESS+short-preamble+short-slot'
+
 class ClientListener(threading.Thread):
 	"""
 	This object is a thread-friendly listener for Client connection
@@ -71,34 +76,68 @@ class ClientListener(threading.Thread):
 	full because the items are not being handled fast enough then new
 	association requests will be dropped and lost.
 	"""
-	def __init__(self, interface, backlog, bssid = None):
+	def __init__(self, interface, backlog, essid = None, bssid = None):
 		threading.Thread.__init__(self)
 		self.interface = interface
 		self.backlog = backlog
+		self.essid = essid
 		if not bssid:
 			bssid = getHwAddr(interface)
 		self.bssid = bssid.lower()
 		self.lastpacket = None
 		self.client_queue = Queue.Queue(self.backlog)	# FIFO
+		self.channel = "\x06"
+		self.capabilities = 'ESS+short-preamble+short-slot'
 		self.__shutdown__ = False
 		
 	def __stopfilter__(self, packet):
-		if not (packet.haslayer('Dot11Auth') or packet.haslayer('Dot11AssoReq')):
+		if (packet.haslayer('Dot11Auth') or packet.haslayer('Dot11AssoReq')):
+			if getBSSID(packet) == self.bssid:
+				self.lastpacket = packet
+				return True
 			return False
-		if getBSSID(packet) == self.bssid:
+		elif packet.haslayer('Dot11ProbeReq'):
 			self.lastpacket = packet
 			return True
+		return False
+			
+	def setPrivacy(self, value):
+		if value:
+			self.capabilities = 'ESS+privacy+short-preamble+short-slot'
 		else:
-			return False
+			self.capabilities = 'ESS+short-preamble+short-slot'
 		
 	def run(self):
 		while not self.__shutdown__:
 			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
 			if self.lastpacket:
+				if self.lastpacket.haslayer('Dot11ProbeReq'):
+					ssid = None											# not to be confused with self.essid, they could be different and need to be evaluated
+					tmp = self.lastpacket.getlayer(Dot11ProbeReq)
+					while tmp:
+						tmp = tmp.payload
+						if tmp.fields['ID'] == 0:
+							ssid = tmp.info
+							break
+					if ssid == None:
+						###
+						print "SSID == None"
+						continue
+					elif ssid == '' and self.essid:
+						###
+						print "SSID is blank, setting to: " + self.essid
+						ssid = self.essid
+					###
+					print "Received Probe Request for SSID: " + ssid
+					if self.essid == None or self.essid == ssid:
+						sendp(RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap=self.capabilities)/Dot11Elt(ID="SSID",info=ssid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x24\x30\x48\x6c')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID="TIM",info="\x00\x01\x00\x00")/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60"), iface=self.interface, verbose=False)
+					self.lastpacket = None
+					continue
 				clientmac = getSource(self.lastpacket)
 				if not self.client_queue.full():
 					self.client_queue.put(clientmac, False)
 				self.lastpacket = None
+				continue
 
 class WirelessStateMachine:
 	"""
@@ -262,17 +301,24 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		return 2
 
 class WirelessStateMachineSoftAP(WirelessStateMachine):
-	def listen(self, backlog, essid, broadcast_interval = 0.25):
+	def __init__(self, interface, bssid, essid = None, source_mac = None, dest_mac = None):
+		self.essid = essid
+		WirelessStateMachine.__init__(self, interface, bssid, source_mac, dest_mac)
+		
+	def __del__(self):
+		self.shutdown()
+		
+	def listen(self, backlog,  broadcast_interval = 0.25):
 		self.backlog = backlog
-		if essid:
-			self.ssid_broadcaster = SSIDBroadcaster(self.interface, essid, self.bssid)
-			self.ssid_broadcaster.broadcast_interval = broadcast_interval
-			self.ssid_broadcaster.start()
+		self.ssid_broadcaster = SSIDBroadcaster(self.interface, self.essid, self.bssid)
+		self.ssid_broadcaster.broadcast_interval = broadcast_interval
+		#self.ssid_broadcaster.setPrivacy(True)
+		self.ssid_broadcaster.start()
 			
 	def accept(self):
 		if self.__shutdown__: return
 		if not hasattr(self, 'client_listener'):
-			self.client_listener = ClientListener(self.interface, self.backlog, self.bssid)
+			self.client_listener = ClientListener(self.interface, self.backlog, self.essid, self.bssid)
 			self.client_listener.start()
 		while not self.__shutdown__:
 			try:
@@ -286,5 +332,18 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 			if not data: continue
 			if not data.haslayer(Dot11AssoReq): continue
 			sockObj.send(Dot11AssoResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID=1, info='\x02\x04\x0b\x16\x0c\x12\x18$')/Dot11Elt(ID=50, info='0H`l'), 0, 1, 0x10, True)
+			print 'Sent Data'
+			### TEST ###
+			sockObj.send(LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=1, id=0), FCfield=2, raw=True)
+			### END TEST ###
 			
 			return sockObj, clientmac
+
+	def shutdown(self):
+		self.__shutdown__ = True
+		if hasattr(self, 'client_listener'):
+			self.client_listener.__shutdown__ = True
+			self.client_listener.join()
+		if hasattr(self, 'ssid_broadcaster'):
+			self.ssid_broadcaster.__shutdown__ = True
+			self.ssid_broadcaster.join()

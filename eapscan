@@ -163,18 +163,14 @@ def check_ap_connection(interface, bssid, essid, quite = True):
 
 def main():
 	parser = argparse.ArgumentParser(description = 'EAPScan: Actively Enumerate 802.1x Wireless Networks', conflict_handler='resolve')
-	parser.add_argument('-e', '--essid', dest = 'essid', action = 'store', default = '', help = 'target ESSID')
-	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', default = '', help = 'target BSSID')
-	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', help = 'interface to use when capturing live')
+	parser.add_argument('-e', '--essid', dest = 'essid', action = 'store', required = True, default = '', help = 'target ESSID')
+	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', required = True, default = '', help = 'target BSSID')
+	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'can all EAP types (4-253)')
 	parser.add_argument('--types', dest = 'eap_types', nargs = '*', action = 'store', default = [], help = 'specific EAP types to try')
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
 	options = parser.parse_args()
-	
-	if not options.essid or not options.bssid or not options.iface:
-		parser.print_help()
-		return 0
 	
 	if getuid():
 		print ERROR + 'Must Be Root To Inject Packets, Now Exiting...'

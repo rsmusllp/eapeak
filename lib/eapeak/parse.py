@@ -81,7 +81,7 @@ EAP_TYPES[0] = 'NONE'
 def getBSSID(packet):
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
-		if not tmppacket.fields.has_key('FCfield'):
+		if not 'FCfield' in tmppacket.fields:
 			tmppacket = tmppacket.payload
 			continue
 		if tmppacket.fields['FCfield'] in BSSIDPositionMap:
@@ -96,7 +96,7 @@ def getBSSID(packet):
 def getSource(packet):
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
-		if not tmppacket.fields.has_key('FCfield'):
+		if not 'FCfield' in tmppacket.fields:
 			tmppacket = tmppacket.payload
 			continue
 		if tmppacket.fields['FCfield'] in SourcePositionMap:
@@ -111,7 +111,7 @@ def getSource(packet):
 def getDestination(packet):
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
-		if not tmppacket.fields.has_key('FCfield'):
+		if not 'FCfield' in tmppacket.fields:
 			tmppacket = tmppacket.payload
 			continue
 		if tmppacket.fields['FCfield'] in DestinationPositionMap:
