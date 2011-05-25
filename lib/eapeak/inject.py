@@ -24,6 +24,24 @@
 
 """
 
+"""
+# SSID BROADCASTER TEST
+from eapeak.inject import *
+caster = SSIDBroadcaster('mon0', 'PythonSoftAP')
+caster.run()
+
+# CLIENT LISTENER TEST
+from eapeak.inject import *
+listener = ClientListener('mon0', 5, 'PythonSoftAP')
+listener.run()
+
+# SOFT AP TEST
+from eapeak.inject import *
+softap = WirelessStateMachineSoftAP('mon0', '00:C0:CA:1A:9D:6D', 'PythonSoftWAP')
+softap.listen(1, 0.15)
+softap.accept()
+"""
+
 from struct import pack, unpack
 from random import randint
 from time import sleep
@@ -37,7 +55,11 @@ from scapy.sendrecv import sniff, sendp
 from scapy.layers.dot11 import *
 from scapy.layers.l2 import *
 
-RESPONSE_TIMEOUT = 1.5	# time to wait for a response
+RESPONSE_TIMEOUT = 3.0	# time to wait for a response
+PRIVACY_NONE = 0
+PRIVACY_WEP = 1
+PRIVACY_WPA = 2
+
 
 class SSIDBroadcaster(threading.Thread):
 	"""
@@ -53,19 +75,34 @@ class SSIDBroadcaster(threading.Thread):
 		self.bssid = bssid.lower()
 		self.broadcast_interval = 0.10
 		self.channel = "\x06"
-		self.capabilities = 'ESS+short-preamble+short-slot'
+		self.setPrivacy(PRIVACY_NONE)
+		self.sequence = randint(1200, 2000)
 		self.__shutdown__ = False
+
+	def __unfuckupSC__(self, fragment = 0):
+		"""
+		This is a reserved method to return the sequence number in a way that is not fucked up by a bug in how the SC field is packed in Scapy.
+		"""
+		if self.sequence >= 0xFFF:
+			self.sequence = 1
+		else:
+			self.sequence += 1
+		SC = (self.sequence - ((self.sequence >> 4) << 4) << 12) + (fragment << 8) + (self.sequence >> 4) # bit shifts FTW!
+		return unpack('<H', pack('>H', SC))[0]
 		
 	def run(self):
 		while not self.__shutdown__:
-			sendp(RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap=self.capabilities)/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x24\x30\x48\x6c')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID="TIM",info="\x00\x01\x00\x00")/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60"), iface=self.interface, verbose=False)
+			self.beacon.getlayer(Dot11).SC = self.__unfuckupSC__()
+			sendp(self.beacon, iface=self.interface, verbose=False)
 			sleep(self.broadcast_interval)
 			
 	def setPrivacy(self, value):
-		if value:
-			self.capabilities = 'ESS+privacy+short-preamble+short-slot'
-		else:
-			self.capabilities = 'ESS+short-preamble+short-slot'
+		if value == PRIVACY_NONE:
+			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+		elif value == PRIVACY_WEP:
+			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+		elif value == PRIVACY_WPA:
+			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 
 class ClientListener(threading.Thread):
 	"""
@@ -87,12 +124,23 @@ class ClientListener(threading.Thread):
 		self.lastpacket = None
 		self.client_queue = Queue.Queue(self.backlog)	# FIFO
 		self.channel = "\x06"
-		self.capabilities = 'ESS+short-preamble+short-slot'
+		self.sequence = randint(1200, 2000)
 		self.__shutdown__ = False
+		
+	def __unfuckupSC__(self, fragment = 0):
+		"""
+		This is a reserved method to return the sequence number in a way that is not fucked up by a bug in how the SC field is packed in Scapy.
+		"""
+		if self.sequence >= 0xFFF:
+			self.sequence = 1
+		else:
+			self.sequence += 1
+		SC = (self.sequence - ((self.sequence >> 4) << 4) << 12) + (fragment << 8) + (self.sequence >> 4) # bit shifts FTW!
+		return unpack('<H', pack('>H', SC))[0]
 		
 	def __stopfilter__(self, packet):
 		if (packet.haslayer('Dot11Auth') or packet.haslayer('Dot11AssoReq')):
-			if getBSSID(packet) == self.bssid:
+			if getBSSID(packet) == self.bssid and getSource(packet) != self.bssid:
 				self.lastpacket = packet
 				return True
 			return False
@@ -102,10 +150,12 @@ class ClientListener(threading.Thread):
 		return False
 			
 	def setPrivacy(self, value):
-		if value:
-			self.capabilities = 'ESS+privacy+short-preamble+short-slot'
-		else:
-			self.capabilities = 'ESS+short-preamble+short-slot'
+		if value == PRIVACY_NONE:
+			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info='')/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+		elif value == PRIVACY_WEP:
+			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID",info='')/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+		elif value == PRIVACY_WPA:
+			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info='')/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 		
 	def run(self):
 		while not self.__shutdown__:
@@ -120,17 +170,13 @@ class ClientListener(threading.Thread):
 							ssid = tmp.info
 							break
 					if ssid == None:
-						###
-						print "SSID == None"
 						continue
 					elif ssid == '' and self.essid:
-						###
-						print "SSID is blank, setting to: " + self.essid
 						ssid = self.essid
-					###
-					print "Received Probe Request for SSID: " + ssid
 					if self.essid == None or self.essid == ssid:
-						sendp(RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap=self.capabilities)/Dot11Elt(ID="SSID",info=ssid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x24\x30\x48\x6c')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID="TIM",info="\x00\x01\x00\x00")/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60"), iface=self.interface, verbose=False)
+						self.probe_response_template.getlayer(Dot11).addr1 = getSource(self.lastpacket)
+						self.probe_response_template.getlayer(Dot11Elt).info = ssid
+						sendp(self.probe_response_template, iface=self.interface, verbose=False)
 					self.lastpacket = None
 					continue
 				clientmac = getSource(self.lastpacket)
@@ -179,7 +225,8 @@ class WirelessStateMachine:
 	def __stopfilter__(self, packet):
 		real_destination = getDestination(packet)
 		real_bssid = getBSSID(packet)
-		if real_destination == self.source_mac and real_bssid == self.bssid:
+		real_source = getSource(packet)
+		if real_destination == self.source_mac and real_bssid == self.bssid and real_source == self.dest_mac:
 			self.lastpacket = packet
 			return True
 		self.lastpacket = None
@@ -234,12 +281,12 @@ class WirelessStateMachine:
 		Read a frame and return the information above the Dot11 layer.
 		"""
 		data = sniff(iface=self.interface, store=1, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
-		if not data:
+		if not data or not self.__stopfilter__(data[-1]):
 			return None
 		data = data[-1].getlayer(Dot11)
 		return data
 		
-	def send(self, data, dot11_type = 2, dot11_subtype = 8, FCfield = 0x01, raw = True):
+	def send(self, data, dot11_type = 2, dot11_subtype = 8, FCfield = 0x02, raw = True):
 		"""
 		Send a frame, if raw, insert the data above the Dot11QoS layer.
 		"""
@@ -301,9 +348,10 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		return 2
 
 class WirelessStateMachineSoftAP(WirelessStateMachine):
-	def __init__(self, interface, bssid, essid = None, source_mac = None, dest_mac = None):
+	def __init__(self, interface, bssid, essid = None):
 		self.essid = essid
-		WirelessStateMachine.__init__(self, interface, bssid, source_mac, dest_mac)
+		self.privacy = PRIVACY_WPA
+		WirelessStateMachine.__init__(self, interface, bssid, bssid, None)
 		
 	def __del__(self):
 		self.shutdown()
@@ -312,13 +360,14 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		self.backlog = backlog
 		self.ssid_broadcaster = SSIDBroadcaster(self.interface, self.essid, self.bssid)
 		self.ssid_broadcaster.broadcast_interval = broadcast_interval
-		#self.ssid_broadcaster.setPrivacy(True)
+		self.ssid_broadcaster.setPrivacy(self.privacy)
 		self.ssid_broadcaster.start()
 			
 	def accept(self):
 		if self.__shutdown__: return
 		if not hasattr(self, 'client_listener'):
 			self.client_listener = ClientListener(self.interface, self.backlog, self.essid, self.bssid)
+			self.client_listener.setPrivacy(self.privacy)
 			self.client_listener.start()
 		while not self.__shutdown__:
 			try:
@@ -327,16 +376,18 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 				continue
 			sockObj = WirelessStateMachine(self.interface, self.bssid, self.source_mac, clientmac)
 			
+			tries = 3
 			sockObj.send(Dot11Auth(seqnum=2), 0, 11, 0, True)
-			data = sockObj.recv()
-			if not data: continue
-			if not data.haslayer(Dot11AssoReq): continue
+			while tries:
+				tries -= 1
+				data = sockObj.recv()
+				if not data: continue
+				if data.haslayer('Dot11AssoReq'): 
+					break
+				elif data.haslayer(Dot11Auth):
+					sockObj.send(Dot11Auth(seqnum=2), 0, 11, 0, True)
+			tries = 3
 			sockObj.send(Dot11AssoResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID=1, info='\x02\x04\x0b\x16\x0c\x12\x18$')/Dot11Elt(ID=50, info='0H`l'), 0, 1, 0x10, True)
-			print 'Sent Data'
-			### TEST ###
-			sockObj.send(LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=1, id=0), FCfield=2, raw=True)
-			### END TEST ###
-			
 			return sockObj, clientmac
 
 	def shutdown(self):
@@ -347,3 +398,23 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		if hasattr(self, 'ssid_broadcaster'):
 			self.ssid_broadcaster.__shutdown__ = True
 			self.ssid_broadcaster.join()
+
+def runAP():
+	SSID = 'PythonSoftAP'
+	IFACE = 'mon0'
+	softap = WirelessStateMachineSoftAP(IFACE, getHwAddr(IFACE), 'PythonSoftAP')
+	softap.listen(1, 0.25)
+	print "[+] Started EAPeak Soft AP\n[+]\tESSID: {}\n[+]\tBSSID: {}".format(SSID, IFACE)
+	try:
+		while True:
+			(clientObj, clientMAC) = softap.accept()
+			print "[+] Client " + clientMAC + " Has Successfully Associated."
+	except KeyboardInterrupt:
+		pass
+	except:
+		print '[-] An Error Has Occured.'
+	print '[+]Shutting Down...'
+	softap.shutdown()
+	
+if __name__ == '__main__':
+	runAP()
