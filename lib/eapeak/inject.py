@@ -25,6 +25,7 @@
 """
 
 """
+# TODO get rid of this section
 # SSID BROADCASTER TEST
 from eapeak.inject import *
 caster = SSIDBroadcaster('mon0', 'PythonSoftAP')
@@ -41,6 +42,8 @@ softap = WirelessStateMachineSoftAP('mon0', '00:C0:CA:1A:9D:6D', 'PythonSoftWAP'
 softap.listen(1, 0.15)
 softap.accept()
 """
+
+__version__ = '0.0.2'
 
 from struct import pack, unpack
 from random import randint
@@ -60,6 +63,9 @@ PRIVACY_NONE = 0
 PRIVACY_WEP = 1
 PRIVACY_WPA = 2
 
+GOOD = '\033[1;32m[+]\033[1;m '
+STATUS = '\033[1;34m[*]\033[1;m '
+ERROR = '\033[1;31m[-]\033[1;m '
 
 class SSIDBroadcaster(threading.Thread):
 	"""
@@ -73,7 +79,7 @@ class SSIDBroadcaster(threading.Thread):
 		if not bssid:
 			bssid = getHwAddr(interface)
 		self.bssid = bssid.lower()
-		self.broadcast_interval = 0.10
+		self.broadcast_interval = 0.15
 		self.channel = "\x06"
 		self.setPrivacy(PRIVACY_NONE)
 		self.sequence = randint(1200, 2000)
@@ -179,9 +185,9 @@ class ClientListener(threading.Thread):
 						sendp(self.probe_response_template, iface=self.interface, verbose=False)
 					self.lastpacket = None
 					continue
-				clientmac = getSource(self.lastpacket)
+				clientMAC = getSource(self.lastpacket)
 				if not self.client_queue.full():
-					self.client_queue.put(clientmac, False)
+					self.client_queue.put(clientMAC, False)
 				self.lastpacket = None
 				continue
 
@@ -280,11 +286,11 @@ class WirelessStateMachine:
 		"""
 		Read a frame and return the information above the Dot11 layer.
 		"""
-		data = sniff(iface=self.interface, store=1, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
-		if not data or not self.__stopfilter__(data[-1]):
+		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		if self.lastpacket:
+			return self.lastpacket
+		else:
 			return None
-		data = data[-1].getlayer(Dot11)
-		return data
 		
 	def send(self, data, dot11_type = 2, dot11_subtype = 8, FCfield = 0x02, raw = True):
 		"""
@@ -350,7 +356,9 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 class WirelessStateMachineSoftAP(WirelessStateMachine):
 	def __init__(self, interface, bssid, essid = None):
 		self.essid = essid
-		self.privacy = PRIVACY_WPA
+		self.privacy = PRIVACY_NONE
+		self.backlog = 5												# sets a default incase listen() hasn't been called, which may be the case if we're responding to multiple network probes
+		self.asso_resp_data = Dot11AssoResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID=1, info='\x02\x04\x0b\x16\x0c\x12\x18$')/Dot11Elt(ID=50, info='0H`l')
 		WirelessStateMachine.__init__(self, interface, bssid, bssid, None)
 		
 	def __del__(self):
@@ -370,11 +378,12 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 			self.client_listener.setPrivacy(self.privacy)
 			self.client_listener.start()
 		while not self.__shutdown__:
+			# FIXME get rid of this try/except statement
 			try:
-				clientmac = self.client_listener.client_queue.get(True, 1)
+				clientMAC = self.client_listener.client_queue.get(True, 1)
 			except Queue.Empty:
 				continue
-			sockObj = WirelessStateMachine(self.interface, self.bssid, self.source_mac, clientmac)
+			sockObj = WirelessStateMachine(self.interface, self.bssid, self.source_mac, clientMAC)
 			
 			tries = 3
 			sockObj.send(Dot11Auth(seqnum=2), 0, 11, 0, True)
@@ -386,9 +395,9 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 					break
 				elif data.haslayer(Dot11Auth):
 					sockObj.send(Dot11Auth(seqnum=2), 0, 11, 0, True)
-			tries = 3
-			sockObj.send(Dot11AssoResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID=1, info='\x02\x04\x0b\x16\x0c\x12\x18$')/Dot11Elt(ID=50, info='0H`l'), 0, 1, 0x10, True)
-			return sockObj, clientmac
+			sockObj.send(self.asso_resp_data, 0, 1, 0x10, True)
+		
+			return sockObj, clientMAC
 
 	def shutdown(self):
 		self.__shutdown__ = True
@@ -398,22 +407,70 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		if hasattr(self, 'ssid_broadcaster'):
 			self.ssid_broadcaster.__shutdown__ = True
 			self.ssid_broadcaster.join()
+			
+class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
+	def __init__(self, interface, bssid, essid):
+		"""EAP version requires an ESSID to target"""
+		WirelessStateMachineSoftAP.__init__(self, interface, bssid, essid)
+		self.privacy = PRIVACY_WPA
+		
+	def accept(self):
+		# FIXME Get rid of all the debug print messages in this function
+		MAX_TRIES = 3
+		while not self.__shutdown__:
+			(sockObj, clientMAC) = WirelessStateMachineSoftAP.accept(self)
+			# print STATUS + "Client " + clientMAC + " Has Associated, Begining EAP Transaction..."
+			tries = MAX_TRIES
+			while tries:
+				tries -= 1
+				data = sockObj.recv()
+				if not data: continue
+				if data.haslayer(EAPOL):
+					tries = MAX_TRIES
+					break
+				elif data.haslayer('Dot11AssoReq'):
+					sockObj.send(self.asso_resp_data, 0, 1, 0x10, True)
+			if tries != MAX_TRIES:
+				# print ERROR + 'Failed To Receive EAPOL'
+				continue												# shit failed in that loop up there
+			# print STATUS + 'Successfully Received EAPOL'
+			
+			sockObj.sequence = 1
+			while tries:
+				tries -= 1
+				sockObj.send('\x00\x00'/LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=1, id=0, identity='\x00networkid=' + self.essid + ',nasid=AP,portid=0'), FCfield=2, raw=True)
+				data = sockObj.recv()
+				if data == None:
+					continue
+				if not data.haslayer(EAP):
+					print ERROR + 'Missing EAP Layer'
+					continue
+				data = data.getlayer(EAP)
+				if not 'identity' in data.fields:
+					print ERROR + 'Missing Identity'
+					continue
+				tries = MAX_TRIES
+				break
+			if tries != MAX_TRIES:
+				continue
+			print GOOD + "Received EAP Identity: {} From Client {}".format(data.identity, clientMAC)
+			return sockObj, clientMAC
 
 def runAP():
 	SSID = 'PythonSoftAP'
 	IFACE = 'mon0'
-	softap = WirelessStateMachineSoftAP(IFACE, getHwAddr(IFACE), 'PythonSoftAP')
+	softap = WirelessStateMachineSoftAPEAP(IFACE, getHwAddr(IFACE), 'PythonSoftAP')
 	softap.listen(1, 0.25)
-	print "[+] Started EAPeak Soft AP\n[+]\tESSID: {}\n[+]\tBSSID: {}".format(SSID, IFACE)
+	print "{0}Started EAPwn Soft AP, Version: {1}\n{0}\tESSID: {2}\n{0}\tInterface: {3}".format(STATUS, __version__, SSID, IFACE)
 	try:
 		while True:
 			(clientObj, clientMAC) = softap.accept()
-			print "[+] Client " + clientMAC + " Has Successfully Associated."
+			print GOOD + 'Client ' + clientMAC + ' Has Successfully Finished Associated.'
 	except KeyboardInterrupt:
 		pass
 	except:
-		print '[-] An Error Has Occured.'
-	print '[+]Shutting Down...'
+		print ERROR + 'An Error Has Occured.'
+	print STATUS + 'Shutting Down...'
 	softap.shutdown()
 	
 if __name__ == '__main__':

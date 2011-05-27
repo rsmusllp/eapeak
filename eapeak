@@ -26,8 +26,7 @@
 	Shout outs to the SecureState Profiling Team (Thanks Guys!)
 	agent0x0
 	f8lerror
-	Jagar
-	MallocM
+	jagar
 	WhIPsmACK0
 	Zamboni
 	
@@ -145,7 +144,7 @@ def main():
 """
 	print 'Welcome To EAPeak\nVersion: ' + __version__ + '\n'
 	
-	# adjust the scapy logs to make them quite, a hat tip to Philippe Biondi for setting it up so nicely
+	# adjust the scapy logs to make them quiet, a hat tip to Philippe Biondi for setting it up so nicely
 	scapy_runtime_log = logging.getLogger("scapy.runtime")
 	scapy_runtime_log.setLevel(logging.ERROR)
 	
