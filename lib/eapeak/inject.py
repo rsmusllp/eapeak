@@ -24,25 +24,6 @@
 
 """
 
-"""
-# TODO get rid of this section
-# SSID BROADCASTER TEST
-from eapeak.inject import *
-caster = SSIDBroadcaster('mon0', 'PythonSoftAP')
-caster.run()
-
-# CLIENT LISTENER TEST
-from eapeak.inject import *
-listener = ClientListener('mon0', 5, 'PythonSoftAP')
-listener.run()
-
-# SOFT AP TEST
-from eapeak.inject import *
-softap = WirelessStateMachineSoftAP('mon0', '00:C0:CA:1A:9D:6D', 'PythonSoftWAP')
-softap.listen(1, 0.15)
-softap.accept()
-"""
-
 __version__ = '0.0.2'
 
 from struct import pack, unpack
@@ -87,7 +68,9 @@ class SSIDBroadcaster(threading.Thread):
 
 	def __unfuckupSC__(self, fragment = 0):
 		"""
-		This is a reserved method to return the sequence number in a way that is not fucked up by a bug in how the SC field is packed in Scapy.
+		This is a reserved method to return the sequence number in a way
+		that is not fucked up by a bug in how the SC field is packed in
+		Scapy.
 		"""
 		if self.sequence >= 0xFFF:
 			self.sequence = 1
@@ -97,12 +80,18 @@ class SSIDBroadcaster(threading.Thread):
 		return unpack('<H', pack('>H', SC))[0]
 		
 	def run(self):
+		"""
+		This is the thread routine that broadcasts the SSID.
+		"""
 		while not self.__shutdown__:
 			self.beacon.getlayer(Dot11).SC = self.__unfuckupSC__()
 			sendp(self.beacon, iface=self.interface, verbose=False)
 			sleep(self.broadcast_interval)
 			
 	def setPrivacy(self, value):
+		"""
+		Configure the privacy settings for None, WEP, and WPA
+		"""
 		if value == PRIVACY_NONE:
 			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 		elif value == PRIVACY_WEP:
@@ -145,6 +134,10 @@ class ClientListener(threading.Thread):
 		return unpack('<H', pack('>H', SC))[0]
 		
 	def __stopfilter__(self, packet):
+		"""
+		This is the stop filter for Scapy to be used to check if the
+		packet was sent to EAPeak.
+		"""
 		if (packet.haslayer('Dot11Auth') or packet.haslayer('Dot11AssoReq')):
 			if getBSSID(packet) == self.bssid and getSource(packet) != self.bssid:
 				self.lastpacket = packet
@@ -156,6 +149,9 @@ class ClientListener(threading.Thread):
 		return False
 			
 	def setPrivacy(self, value):
+		"""
+		Configure the privacy settings for None, WEP, and WPA
+		"""
 		if value == PRIVACY_NONE:
 			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info='')/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 		elif value == PRIVACY_WEP:
@@ -164,6 +160,10 @@ class ClientListener(threading.Thread):
 			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info='')/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 		
 	def run(self):
+		"""
+		This is the thread routine that handles probe requests and sends
+		probe responses when appropriate.
+		"""
 		while not self.__shutdown__:
 			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
 			if self.lastpacket:
@@ -193,14 +193,16 @@ class ClientListener(threading.Thread):
 
 class WirelessStateMachine:
 	"""
-	This provides a psuedo-socket like object that provides a stack for Dot11 communications using Scapy.
+	This provides a psuedo-socket like object that provides a stack for
+	Dot11 communications using Scapy.
 	
 	Remember:
 	States Are For Smashing
 	"""
 	def __init__(self, interface, bssid, source_mac = None, dest_mac = None):
 		"""
-		You must specify a BSSID and a Local MAC address because the entire point of this code is to facilitate stateful connections.
+		You must specify a BSSID and a Local MAC address because the
+		entire point of this code is to facilitate stateful connections.
 		"""
 		if not source_mac:
 			source_mac = getHwAddr(interface)
@@ -229,6 +231,10 @@ class WirelessStateMachine:
 		return unpack('<H', pack('>H', SC))[0]
 		
 	def __stopfilter__(self, packet):
+		"""
+		This is the stop filter for Scapy to be used to check if the
+		packet was sent to this WirelessStateMachine instance.
+		"""
 		real_destination = getDestination(packet)
 		real_bssid = getBSSID(packet)
 		real_source = getSource(packet)
@@ -241,7 +247,13 @@ class WirelessStateMachine:
 	def connect(self, essid):
 		"""
 		Connect/Associate with an access point.
-		errDict = {-1:"Already Connected", 0:"No Error", 1:"Failed To Get Probe Response", 2:"Failed To Get Authentication Response", 3:"Failed To Get Association Response"}
+		errDict = {
+			-1:"Already Connected",
+			0:"No Error",
+			1:"Failed To Get Probe Response",
+			2:"Failed To Get Authentication Response",
+			3:"Failed To Get Association Response"
+		}
 		"""
 		# Dot11 Probe Request
 		if self.connected == True:
@@ -272,8 +284,13 @@ class WirelessStateMachine:
 		
 	def close(self):
 		"""
-		Disassociate from the access point,  This does not veify that the AP received the message and should be considred a best-effort attempt.
-		errDict = {-1:"Not Connected", 0:"No Error"}
+		Disassociate from the access point,  This does not veify that
+		the AP received the message and should be considred a
+		best-effort attempt.
+		errDict = {
+			-1:"Not Connected",
+			0:"No Error"
+		}
 		"""
 		if not self.connected:
 			return -1
@@ -305,13 +322,10 @@ class WirelessStateMachine:
 		self.sequence += 1
 		
 	def shutdown(self):
+		"""
+		Shutdown and disassociate from the AP.
+		"""
 		self.__shutdown__ = True
-		if hasattr(self, 'ssid_broadcaster'):							# only applicable in WirelessStateMachineSoftAP
-			self.ssid_broadcaster.__shutdown__ = True
-			self.ssid_broadcaster.join()
-		if hasattr(self, 'client_listener'):							# only applicable in WirelessStateMachineSoftAP
-			self.client_listener.__shutdown__ = True
-			self.client_listener.join()
 		if self.connected:
 			self.close()
 
@@ -323,7 +337,11 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 	def check_eap_type(self, eaptype):
 		"""
 		Check that an eaptype is supported.
-		errDict = {0:"supported", 1:"not supported", 2:"could not determine"}
+		errDict = {
+			0:"supported",
+			1:"not supported",
+			2:"could not determine"
+		}
 		"""
 		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, identity='user')
 		self.sequence += 1
@@ -354,6 +372,10 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		return 2
 
 class WirelessStateMachineSoftAP(WirelessStateMachine):
+	"""
+	This is a Python Soft AP object, it manages SSIDBroadcaster and
+	ClientListener Threads.
+	"""
 	def __init__(self, interface, bssid, essid = None):
 		self.essid = essid
 		self.privacy = PRIVACY_NONE
@@ -365,6 +387,10 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		self.shutdown()
 		
 	def listen(self, backlog,  broadcast_interval = 0.25):
+		"""
+		This sets and starts the SSIDBroadcaster thread and is meant to
+		be called once per initialization.
+		"""
 		self.backlog = backlog
 		self.ssid_broadcaster = SSIDBroadcaster(self.interface, self.essid, self.bssid)
 		self.ssid_broadcaster.broadcast_interval = broadcast_interval
@@ -372,17 +398,30 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		self.ssid_broadcaster.start()
 			
 	def accept(self):
+		"""
+		This is called after the listen() call and sets up the
+		ClientListener, which will respond to probe requests.
+		This method can (and often will be) called multiple times.  It
+		returns a new WirelessStateMachine instance, pre-configured for
+		communication with the client machine.  The client will already
+		be associated with the PythonSoftAP.
+		
+		The Dot11 Authentication frames and Dot11 Association frames are
+		transfered in this call, implying the main calling thread is
+		blocking.  It is possible that the ClientListener thread may
+		queue multiple clients that are attempting to associate with the
+		PythonSoftAP but may be lost if accept() is not called again
+		before the clients timeout.
+		"""
 		if self.__shutdown__: return
 		if not hasattr(self, 'client_listener'):
 			self.client_listener = ClientListener(self.interface, self.backlog, self.essid, self.bssid)
 			self.client_listener.setPrivacy(self.privacy)
 			self.client_listener.start()
 		while not self.__shutdown__:
-			# FIXME get rid of this try/except statement
-			try:
-				clientMAC = self.client_listener.client_queue.get(True, 1)
-			except Queue.Empty:
+			if self.client_listener.client_queue.empty():
 				continue
+			clientMAC = self.client_listener.client_queue.get(True, 1)
 			sockObj = WirelessStateMachine(self.interface, self.bssid, self.source_mac, clientMAC)
 			
 			tries = 3
@@ -400,7 +439,11 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 			return sockObj, clientMAC
 
 	def shutdown(self):
-		self.__shutdown__ = True
+		"""
+		Shutdown and join the SSIDBroadcaster and ClientListener
+		threads.
+		"""
+		WirelessStateMachine.shutdown(self)
 		if hasattr(self, 'client_listener'):
 			self.client_listener.__shutdown__ = True
 			self.client_listener.join()
@@ -410,11 +453,18 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 			
 class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 	def __init__(self, interface, bssid, essid):
-		"""EAP version requires an ESSID to target"""
+		"""
+		EAP version requires an ESSID to target, and automatically
+		sets the privacy to WPA.
+		"""
 		WirelessStateMachineSoftAP.__init__(self, interface, bssid, essid)
 		self.privacy = PRIVACY_WPA
 		
 	def accept(self):
+		"""
+		This extends the WirelessStateMachineSoftAP accept() method but
+		adds in the exchange of EAP identities.
+		"""
 		# FIXME Get rid of all the debug print messages in this function
 		MAX_TRIES = 3
 		while not self.__shutdown__:
@@ -453,10 +503,16 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 				break
 			if tries != MAX_TRIES:
 				continue
+			# TODO Do something with the username right here
 			print GOOD + "Received EAP Identity: {} From Client {}".format(data.identity, clientMAC)
 			return sockObj, clientMAC
 
 def runAP():
+	"""
+	This is a simple method that sets up an new WirelessStateMachine
+	instance to broadcast an SSID and create a simple PythonSoftAP
+	that associates clients, then ceases communication with them.
+	"""
 	SSID = 'PythonSoftAP'
 	IFACE = 'mon0'
 	softap = WirelessStateMachineSoftAPEAP(IFACE, getHwAddr(IFACE), 'PythonSoftAP')

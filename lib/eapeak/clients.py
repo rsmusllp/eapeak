@@ -30,6 +30,10 @@ from xml.sax.saxutils import escape as XMLEscape
 EAP_TYPES[0] = 'NONE'
 
 class WirelessClient:
+	"""
+	This is an object representing a wireless client.  The MAC address,
+	and BSSID are both unique.
+	"""
 	authenticated = False
 	mac = ''	# this is unique
 	bssid = ''	# this is also unique
@@ -43,6 +47,9 @@ class WirelessClient:
 		self.mschap = []												# holds respObj dictionaries, keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
 	
 	def addEapType(self, eaptype):
+		"""
+		Add an eap type to the internal list.
+		"""
 		if eaptype not in self.eapTypes and eaptype > 4:
 			self.eapTypes.append(eaptype)
 
@@ -56,6 +63,12 @@ class WirelessClient:
 			
 	def addMSChapInfo(self, eaptype, challenge = None, response = None, identity = None):
 		"""
+		Adds information to the internal "mschap" list which contains
+		dictionaries for each set with keys of:
+			't'	eap type (integer)
+			'c' challenge (packed binary string)
+			'r' response (packed binary string)
+			'i' identity (string)
 		Challenge and Response strings are packed binary,
 		NOT 00:00:00:00:00:00:00
 		"""

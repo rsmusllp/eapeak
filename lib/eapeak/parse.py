@@ -79,6 +79,9 @@ from scapy.layers.ssl import TLSv1RecordLayer, TLSv1ClientHello, TLSv1ServerHell
 EAP_TYPES[0] = 'NONE'
 
 def getBSSID(packet):
+	"""
+	Returns a BSSID from a Scapy packet object, returns None on failure.
+	"""
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
 		if not 'FCfield' in tmppacket.fields:
@@ -94,6 +97,9 @@ def getBSSID(packet):
 	return None
 	
 def getSource(packet):
+	"""
+	Returns the source MAC address from a Scapy packet object, returns None on failure.
+	"""
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
 		if not 'FCfield' in tmppacket.fields:
@@ -109,6 +115,9 @@ def getSource(packet):
 	return None
 	
 def getDestination(packet):
+	"""
+	Returns the destination MAC address from a Scapy packet object, returns None on failure.
+	"""
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
 		if not 'FCfield' in tmppacket.fields:
@@ -125,7 +134,7 @@ def getDestination(packet):
 	
 def mergeWirelessNetworks(source, destination):
 	"""
-	Merge information of two wireless networks, used to preserve
+	Merge information about two wireless networks, used to preserve
 	information when one is un-orphaned.
 	"""
 	for bssid in source.bssids:
@@ -143,7 +152,13 @@ def mergeWirelessNetworks(source, destination):
 
 class EapeakParsingEngine:
 	"""
-	This is the main engine that manages all of the networks.
+	This is the main parsing engine that manages all of the networks.
+	
+	Notable attributes:
+	KnownNetworks: holds wireless network objects, indexed by SSID if available, BSSID if orphaned
+	BSSIDToSSIDMap: holds SSIDs, indexed by BSSIDS, so you can obtain network objects by BSSID
+	OrphanedBSSIDs: holds BSSIDs that are not associated with a known SSID
+	fragment_buffer: holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
 	"""
 	def __init__(self, targetSSIDs = []):
 		self.KnownNetworks = { }							# holds wireless network objects, indexed by SSID if available, BSSID if orphaned
@@ -155,6 +170,12 @@ class EapeakParsingEngine:
 		self.fragment_buffer = {}							# holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
 		
 	def parseLiveCapture(self, packet, quite = True):
+		"""
+		Function is meant to be passed to Scapy's sniff() function similar to:
+		lambda packet: eapeakParser.parseLiveCapture(packet, use_curses)
+		
+		sniff(iface = 'mon0', prn = lambda packet: eapeakParser.parseLiveCapture(packet, False) )
+		"""
 		self.parseWirelessPacket(packet)
 		if quite:
 			return
@@ -330,7 +351,7 @@ class EapeakParsingEngine:
 						
 	def parseWirelessPacket(self, packet):
 		"""
-		This is the core packet parsing routine.  It takes a scapy style
+		This is the core packet parsing routine.  It takes a Scapy style
 		packet object as an argument.
 		"""
 		if packet.name == 'RadioTap dummy':
@@ -487,7 +508,8 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 	"""
 	def initCurses(self):
 		"""
-		This initializes the screen for curses useage.
+		This initializes the screen for curses useage.  It must be
+		called before Curses can be used.
 		"""
 		self.user_marker_pos = 1							# used with curses
 		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
@@ -518,8 +540,8 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		
 	def cursesInteractionHandler(self, garbage = None):
 		"""
-		This is a function meant to be run in a thread to handle human
-		interaction with the curses interface.
+		This is a function meant to be run in a seperate thread to
+		handle human interaction with the curses interface.
 		"""
 		while self.curses_enabled:
 			c = self.screen.getch()
@@ -634,8 +656,8 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					
 	def cursesScreenDrawHandler(self, save_to_xml):
 		"""
-		This is a function meant to be run in a thread to handle drawing
-		the curses interface to the screen.
+		This is a function meant to be run in a seperate thread to
+		handle drawing the curses interface to the screen.
 		"""
 		while self.curses_enabled:
 			sleep(CURSES_REFRESH_FREQUENCY)
@@ -793,8 +815,10 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		
 	def parseLiveCapture(self, packet, quite = True):
 		"""
-		This is a modified version of the parseLiveCapture function to 
-		stay quite if the curses interface is in use.
+		Function is meant to be passed to Scapy's sniff() function similar to:
+		lambda packet: eapeakParser.parseLiveCapture(packet, use_curses)
+		
+		sniff(iface = 'mon0', prn = lambda packet: eapeakParser.parseLiveCapture(packet, False) )
 		"""
 		self.parseWirelessPacket(packet)
 		if self.curses_enabled or quite:

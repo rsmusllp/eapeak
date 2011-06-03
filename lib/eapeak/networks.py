@@ -32,6 +32,13 @@ EAP_TYPES[0] = 'NONE'
 
 
 class WirelessNetwork:
+	"""
+	This is an object representing a network.  It holds information
+	about a single wireless network including BSSIDs, and Clients (as
+	EAPeak Client Objects.
+	
+	Each network has a unique SSID/ESSID, but can have multiple BSSIDs.
+	"""
 	ssid = ''	# this is unique
 	
 	def __init__(self, ssid, bssid = ''):
@@ -43,8 +50,11 @@ class WirelessNetwork:
 		
 		if bssid:
 			self.bssids.append(bssid)
-			
+
 	def addBSSID(self, bssid):
+		"""
+		Add a bssid to be associated with this network.
+		"""
 		if bssid not in self.bssids:
 			self.bssids.append(bssid)
 			
@@ -68,10 +78,16 @@ class WirelessNetwork:
 		return 0
 			
 	def addEapType(self, eapType):
+		"""
+		Add an eap type to the internal list.
+		"""
 		if eapType not in self.eapTypes and eapType not in [1, 3]:
 			self.eapTypes.append(eapType)
 
 	def addClient(self, clientobj):
+		"""
+		Add an associated Client Object to the internal list.
+		"""
 		if not clientobj.mac in self.clients.keys():
 			self.clients[clientobj.mac] = clientobj
 			
