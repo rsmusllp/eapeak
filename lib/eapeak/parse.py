@@ -49,6 +49,7 @@ import scapy.packet
 import scapy.layers.all
 from scapy.sendrecv import sniff
 
+from eapeak.common import getBSSID, getSource, getDestination
 import eapeak.networks 
 import eapeak.clients
 
@@ -56,10 +57,6 @@ import eapeak.clients
 UNKNOWN_SSID_NAME = 'UNKNOWN_SSID'
 XML_FILE_NAME = 'eapeak.xml'
 SSID_SEARCH_RECURSION = 5
-BSSID_SEARCH_RECURSION = 3
-BSSIDPositionMap = { 0:'3', 1:'1', 2:'2', 8:'3', 9:'1', 10:'2' }
-SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
-DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 CURSES_LINE_BREAK = [0, '']
 CURSES_REFRESH_FREQUENCY = 0.10
 CURSES_LOWER_REFRESH_FREQUENCY = 5	# frequency of CURSES_REFRESH_FREQUENCY, also used for calls to exportXML
@@ -77,60 +74,6 @@ from scapy.layers.l2 import eap_types as EAP_TYPES
 from scapy.layers.l2 import EAP, EAP_TLS, LEAP, EAP_TTLS, PEAP, EAP_Fast
 from scapy.layers.ssl import TLSv1RecordLayer, TLSv1ClientHello, TLSv1ServerHello, TLSv1ServerHelloDone, TLSv1KeyExchange, TLSv1Certificate
 EAP_TYPES[0] = 'NONE'
-
-def getBSSID(packet):
-	"""
-	Returns a BSSID from a Scapy packet object, returns None on failure.
-	"""
-	tmppacket = packet
-	for x in range(0, BSSID_SEARCH_RECURSION):	
-		if not 'FCfield' in tmppacket.fields:
-			tmppacket = tmppacket.payload
-			continue
-		if tmppacket.fields['FCfield'] in BSSIDPositionMap:
-			if tmppacket.fields.has_key('addr' + BSSIDPositionMap[tmppacket.fields['FCfield']]):
-				return tmppacket.fields['addr' + BSSIDPositionMap[tmppacket.fields['FCfield']]]
-			else:
-				return None # something is invalid
-		else:
-			return None # somthing is invalid
-	return None
-	
-def getSource(packet):
-	"""
-	Returns the source MAC address from a Scapy packet object, returns None on failure.
-	"""
-	tmppacket = packet
-	for x in range(0, BSSID_SEARCH_RECURSION):	
-		if not 'FCfield' in tmppacket.fields:
-			tmppacket = tmppacket.payload
-			continue
-		if tmppacket.fields['FCfield'] in SourcePositionMap:
-			if tmppacket.fields.has_key('addr' + SourcePositionMap[tmppacket.fields['FCfield']]):
-				return tmppacket.fields['addr' + SourcePositionMap[tmppacket.fields['FCfield']]]
-			else:
-				return None # something is invalid
-		else:
-			return None # somthing is invalid
-	return None
-	
-def getDestination(packet):
-	"""
-	Returns the destination MAC address from a Scapy packet object, returns None on failure.
-	"""
-	tmppacket = packet
-	for x in range(0, BSSID_SEARCH_RECURSION):	
-		if not 'FCfield' in tmppacket.fields:
-			tmppacket = tmppacket.payload
-			continue
-		if tmppacket.fields['FCfield'] in DestinationPositionMap:
-			if tmppacket.fields.has_key('addr' + DestinationPositionMap[tmppacket.fields['FCfield']]):
-				return tmppacket.fields['addr' + DestinationPositionMap[tmppacket.fields['FCfield']]]
-			else:
-				return None # something is invalid
-		else:
-			return None # somthing is invalid
-	return None
 	
 def mergeWirelessNetworks(source, destination):
 	"""

@@ -32,7 +32,7 @@ from time import sleep
 import threading
 import Queue
 
-from eapeak.parse import getBSSID, getSource, getDestination
+from eapeak.common import getBSSID, getSource, getDestination
 from ipfunc import getHwAddr
 
 from scapy.sendrecv import sniff, sendp
@@ -258,7 +258,7 @@ class WirelessStateMachine:
 		# Dot11 Probe Request
 		if self.connected == True:
 			return -1
-		sendp(RadioTap()/Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=0, subtype=4, ID=218)/Dot11ProbeReq()/Dot11Elt(ID=0, info=essid)/Dot11Elt(ID=1, info='\x02\x04\x0b\x16\x0c\x12\x18$')/Dot11Elt(ID=50, info='0H`l'), iface=self.interface, verbose=False)
+		sendp(RadioTap()/Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=0, subtype=4, ID=218)/Dot11ProbeReq()/Dot11Elt(ID=0, info=essid)/Dot11Elt(ID=1, info='\x02\x04\x0b\x16\x0c\x12\x18$')/Dot11Elt(ID=50, info='0H`l'), iface=self.interface, verbose=False)
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
 		if self.lastpacket == None:
