@@ -49,7 +49,8 @@ def getBSSID(packet):
 	
 def getSource(packet):
 	"""
-	Returns the source MAC address from a Scapy packet object, returns None on failure.
+	Returns the source MAC address from a Scapy packet object, returns
+	None on failure.
 	"""
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
@@ -67,7 +68,8 @@ def getSource(packet):
 	
 def getDestination(packet):
 	"""
-	Returns the destination MAC address from a Scapy packet object, returns None on failure.
+	Returns the destination MAC address from a Scapy packet object,
+	returns None on failure.
 	"""
 	tmppacket = packet
 	for x in range(0, BSSID_SEARCH_RECURSION):	
@@ -87,7 +89,13 @@ def checkInterface(ifname):
 	"""
 	This is a modified function from one I found online to get an IP.
 	Only Linux is supported.
-	errDict = {-2:"Unsupported OS", -1: "Unknown", 0:"Iface Exists, Has IP", 1:"Iface Exists, No IP", 2:"Iface Does Not Exist"}
+	errDict = {
+		-2: "Unsupported OS",
+		-1: "Unknown",
+		0: "Iface Exists, Has IP",
+		1: "Iface Exists, No IP",
+		2: "Iface Does Not Exist"
+	}
 	"""
 	from socket import socket, AF_INET, SOCK_DGRAM
 	from fcntl import ioctl
