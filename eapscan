@@ -130,7 +130,7 @@ def check_ap_connection(interface, bssid, essid, quite = True):
 			if errCode:
 				sleep(ERROR_SLEEP_TIME)
 				if not quite:
-					sys.stdout.write(str(errCode))#'.')
+					sys.stdout.write('.')
 					sys.stdout.flush()
 				tries += 1
 				continue

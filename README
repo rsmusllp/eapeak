@@ -17,6 +17,7 @@ MA 02110-1301, USA.
 
 This license does not apply to the following components:
  * Scapy
+ * M2Crypto
 
 == About ==
 Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
