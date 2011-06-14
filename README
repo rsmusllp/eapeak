@@ -18,12 +18,13 @@ MA 02110-1301, USA.
 This license does not apply to the following components:
  * Scapy
  * M2Crypto
+ * argparse
 
 == About ==
 Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
-HomePage: http://www.securestate.com/
+Home Page: http://www.securestate.com/
 
-Please Send Bug Reports To: eapeakdev@securestate.com
+Please Send Bug Reports To: <eapeakdev [at] securestate [dot] com>
 
 == Install ==
 For install information please see the INSTALL file.

@@ -529,7 +529,7 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 			if tries != self.max_tries:
 				continue
 			# TODO Do something with the username right here
-			print GOOD + "Received EAP Identity: {} From Client {}".format(data.identity, clientMAC)
+			print GOOD + "Received EAP Identity: {0} From Client {1}".format(data.identity, clientMAC)
 			
 			while tries:
 				tries -= 1

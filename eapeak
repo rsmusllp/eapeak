@@ -40,15 +40,23 @@
 
 __version_major__ = '0'
 __version_minor__ = '1'
-__version_build__ = '2'
+__version_build__ = '3'
 __version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
 del __version_major__, __version_minor__, __version_build__
 
 __authors__ = [ 'Spencer McIntyre', 'SecureState R&D Team' ]
 
+import sys
+try:
+	from scapy.layers.l2 import eap_types as EAP_TYPES
+except ImportError:
+	print 'Error: Missing Scapy Libraries, Please Install Scapy From The Community Repository'
+	# http://hg.secdev.org/scapy-com # needs community repository because of the extra EAP layers I added.
+	print 'Error: Now Exiting...'
+	sys.exit(1)
+
 def main():
 	import os
-	import sys
 	from socket import error as socketError	# needed for the error
 	import thread
 	import logging
@@ -60,14 +68,7 @@ def main():
 	except ImportError:
 		curses_enabled = False
 	
-	try:
-		from scapy.config import conf
-	except ImportError:
-		print 'Error: Missing Scapy Libraries, Please Install Scapy From The Community Repository'
-		# http://hg.secdev.org/scapy-com # needs community repository because of the extra EAP layers I added.
-		print 'Error: Now Exiting...'
-		return 1
-		
+	from scapy.config import conf
 	try:
 		from M2Crypto import X509
 	except ImportError:
