@@ -38,6 +38,7 @@ except ImportError:
 	sys.exit(1)
 
 import argparse
+from binascii import unhexlify
 from eapeak.common import checkInterface
 from eapeak.inject import *
 from eapeak.parse import EapeakParsingEngine
@@ -54,8 +55,10 @@ def main():
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', default = '', help = 'target BSSID')
 	#parser.add_argument('--eap', dest = 'use_eap', action = 'store_true', default = False, help = 'enable fake EAP requests')
+	parser.add_argument('--mschap', dest = 'mschap_challenge', action = 'store', default = None, help = 'specify a static MSChap challenge to use')
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
 	options = parser.parse_args()
+	del parser
 	
 	if not checkInterface(options.iface) in [ 0, 1 ]:
 		print ERROR + 'Invalid Interface, Now Exiting...'
@@ -71,15 +74,20 @@ def main():
 	#else:
 	#	softap = WirelessStateMachineSoftAP(options.iface, bssid, options.essid)
 	softap = WirelessStateMachineSoftAPEAP(options.iface, bssid, options.essid)
+	try:
+		softap.mschap_challenge = unhexlify(options.mschap_challenge.replace(':', ''))
+	except ValueError:
+		print ERROR + 'Invalid MSChap Challenge String (Length Must Be 8 Bytes)'
+	except:
+		print ERROR + 'Invalid MSChap Challenge String'
 	
-	softap.listen(1, 0.25)	# TODO add broadcast_interval options
+	softap.listen(5, 0.25)	# TODO add broadcast_interval options
 	print "{0}Started EAPwn Soft AP, Version: {1}\n{0}\tESSID: {2}\n{0}\tBSSID: {3}\n{0}\tInterface: {4}".format(STATUS, __version__, options.essid, bssid, options.iface)
 	try:
 		while True:
 			(sockObj, clientMAC) = softap.accept()
 			print GOOD + 'Received Client Connection:'
 			print sockObj.clientDescriptor.show(1)
-			print ''
 	except KeyboardInterrupt:
 		pass
 	except:

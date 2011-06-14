@@ -503,9 +503,28 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 		self.privacy = PRIVACY_WPA
 		
 		# EAP Crap Goes Here
-		self.mschap_challenge = "\x00\x00\x00\x00\x00\x00\x00\x00"		# this allows for statics to be set
+		self.__mschap_challenge__ = None
 		self.eap_priorities = [ 17 ]
 		self.eap_handlers = { 17:self.handleLEAP }
+	
+	@property
+	def mschap_challenge(self):
+		if self.__mschap_challenge__ == None:
+			return ''.join([ pack('B', randint(0, 255)) for x in range(8) ])
+		return self.__mschap_challenge__
+	
+	@mschap_challenge.setter
+	def mschap_challenge(self, value):
+		if value == None:
+			self.__mschap_challenge__ = None
+			return
+		elif len(value) != 8:
+			raise ValueError('Invalid Challenge Length')
+		self.__mschap_challenge__ = value
+	
+	@mschap_challenge.deleter
+	def mschap_challenge(self):
+		del self.__mschap_challenge__
 
 	def accept(self):
 		"""
