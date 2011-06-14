@@ -35,7 +35,7 @@ if version[0] == 2 and version[1] < 7:
 
 setup(
 	name = 'EAPeak',
-	version = '0.1.3',
+	version = '0.1.4',
 	description = 'EAPeak Wireless Analysis Suite',
 	
 	# Author
@@ -58,7 +58,7 @@ setup(
 	package_dir = { '': 'lib' },
 	py_modules = py_modules,
 	
-	scripts = [ 'eapeak', 'eapscan' ],
+	scripts = [ 'eapeak', 'eapscan', 'eapwn' ],
 	data_files = [	
 					('/usr/share/man/man1', ['data/man/eapeak.1.gz']),
 					('/usr/share/man/man1', ['data/man/eapscan.1.gz'])
