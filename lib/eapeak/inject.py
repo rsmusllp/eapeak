@@ -27,6 +27,7 @@
 __version__ = '0.0.4'
 
 from binascii import hexlify, unhexlify
+from socket import error as socketError
 from struct import pack, unpack
 from random import randint
 from time import sleep
@@ -224,6 +225,7 @@ class WirelessStateMachine:
 		self.__shutdown__ = False
 		self.sequence = randint(1200, 2000)
 		self.lastpacket = None
+		self.timeout = RESPONSE_TIMEOUT
 		
 	def __del__(self):
 		self.shutdown()
@@ -274,7 +276,7 @@ class WirelessStateMachine:
 				Dot11Elt(ID=50, info='\x30\x48\x60\x6c'),
 				iface=self.interface, verbose=False)
 		self.sequence += 1
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket == None:
 			return 1
 
@@ -285,7 +287,7 @@ class WirelessStateMachine:
 				Dot11Auth(seqnum=1),
 				iface=self.interface, verbose=False)
 		self.sequence += 1
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket == None:
 			return 2
 		
@@ -301,7 +303,7 @@ class WirelessStateMachine:
 				iface=self.interface, verbose=False)
 
 		self.sequence += 1
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket == None:
 			return 3
 		
@@ -326,11 +328,11 @@ class WirelessStateMachine:
 		self.connected = False
 		return 0
 		
-	def recv(self):
+	def recv(self, bufferlen = 0):
 		"""
 		Read a frame and return the information above the Dot11 layer.
 		"""
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket:
 			return self.lastpacket
 		else:
@@ -504,8 +506,11 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 		
 		# EAP Crap Goes Here
 		self.__mschap_challenge__ = None
-		self.eap_priorities = [ 17 ]
-		self.eap_handlers = { 17:self.handleLEAP }
+		self.eap_priorities = [ ]
+		self.eap_handlers = {
+								17:self.handleLEAP,
+								25:self.handlePEAP
+							}
 	
 	@property
 	def mschap_challenge(self):
@@ -525,6 +530,14 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 	@mschap_challenge.deleter
 	def mschap_challenge(self):
 		del self.__mschap_challenge__
+	
+	def addEapType(self, eaptype):
+		if not eaptype in self.eap_handlers.keys():
+			return False
+		if eaptype in self.eap_priorities:
+			return True
+		self.eap_priorities.append(eaptype)
+		return True
 
 	def accept(self):
 		"""
@@ -591,5 +604,18 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 			sockObj.clientDescriptor.addEapType(17)
 			sockObj.clientDescriptor.addMSChapInfo(17, self.mschap_challenge, leap.data, identity)
 			return 0, None 
+		if tries != self.max_tries:
+			return 2, None
+
+	def handlePEAP(self, sockObj, identity):
+		"""
+		This is not yet supported.  Don't even bother trying.
+		"""
+		self.networkDescriptor.addEapType(25)
+		tries = self.max_tries
+		while tries:
+			tries -= 1
+			sockObj.send('\x00\x00'/LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=25, id=2)/PEAP(version=1, flags='start'), FCfield=2, raw=True)
+			return 0, None
 		if tries != self.max_tries:
 			return 2, None

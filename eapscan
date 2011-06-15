@@ -193,9 +193,15 @@ def main():
 		check_range = range(4, 254)
 	elif options.eap_types:
 		check_range = []
-		for i in options.eap_types:
-			if i.isdigit() and 3 < int(i) < 254:
-				check_range.append(int(i))
+		
+	
+		for eaptype in options.eap_types:
+			if eaptype.upper() in EAP_TYPES.values():
+				eaptype = str(EAP_TYPES.keys()[ EAP_TYPES.values().index(eaptype.upper()) ])
+			if eaptype.isdigit() and 3 < int(eaptype) < 254:
+				check_range.append(int(eaptype))
+			else:
+				print ERROR + 'Invalid EAP Type: ' + eaptype
 		if len(check_range) == 0:
 			print ERROR + 'No Usable EAP Types (4-253), Now Exiting...'
 			return 5
