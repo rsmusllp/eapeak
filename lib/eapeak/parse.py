@@ -412,13 +412,13 @@ class EapeakParsingEngine:
 					client.addIdentity(1, fields['identity'])
 				if packet.haslayer('LEAP'):
 					leap_fields = packet.getlayer(LEAP).fields
+					identity = None
 					if 'name' in leap_fields:
 						identity = leap_fields['name']
-						if identity:
-							client.addIdentity(17, identity)
+						client.addIdentity(17, identity)
 					if 'data' in leap_fields and len(leap_fields['data']) == 24:
-						client.addMSChapInfo(17, response = leap_fields['data'], identity = leap_fields['name'])
-					del leap_fields
+						client.addMSChapInfo(17, response = leap_fields['data'], identity = identity)
+					del leap_fields, identity
 			network.addClient(client)
 			if not cert_layer:
 				shouldStop = True
