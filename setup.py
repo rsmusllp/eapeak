@@ -27,33 +27,38 @@
 
 from distutils.core import setup
 from os import listdir
+from sys import version_info as version
+
+py_modules = [ 'ipfunc' ]
+if version[0] == 2 and version[1] < 7:
+	py_modules.append('argparse')
 
 setup(
 	name = 'EAPeak',
-	version = '0.1.0',
-	description = 'EAPeak Wireless Analysis Tool',
+	version = '0.1.4',
+	description = 'EAPeak Wireless Analysis Suite',
 	
 	# Author
 	author = 'Spencer McIntyre',
-	author_email = 'SMcIntyre[at]SecureState.net',
+	author_email = 'SMcIntyre [at] SecureState [dot] com',
 	
 	# Maintainer
 	maintainer = 'Spencer McIntyre',
-	maintainer_email = 'SMcIntyre[at]SecureState.net',
+	maintainer_email = 'SMcIntyre [at] SecureState [dot] com',
 	
 	url = 'http://www.securestate.com/',
-	# download_url = 'http://www.securestate.com/',
+	download_url = 'http://www.securestate.com/',
 	
 	# EAPeak's required packages
-	requires = [ 'scapy' ],
+	requires = [ 'scapy', 'M2Crypto' ],
 	
 	# EAPeak's package data
 	provides = [ 'eapeak' ],
 	packages = [ 'eapeak' ],
 	package_dir = { '': 'lib' },
-	py_modules = [ 'ipfunc' ],
+	py_modules = py_modules,
 	
-	scripts = [ 'eapeak', 'eapscan' ],
+	scripts = [ 'eapeak', 'eapscan', 'eapwn' ],
 	data_files = [	
 					('/usr/share/man/man1', ['data/man/eapeak.1.gz']),
 					('/usr/share/man/man1', ['data/man/eapscan.1.gz'])

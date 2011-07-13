@@ -24,9 +24,10 @@
 
 """
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 from binascii import hexlify, unhexlify
+from socket import error as socketError
 from struct import pack, unpack
 from random import randint
 from time import sleep
@@ -34,6 +35,9 @@ import threading
 import Queue
 
 from eapeak.common import getBSSID, getSource, getDestination
+from eapeak.networks import WirelessNetwork
+from eapeak.clients import WirelessClient
+from eapeak.parse import UNKNOWN_SSID_NAME
 from ipfunc import getHwAddr
 
 from scapy.sendrecv import sniff, sendp
@@ -221,6 +225,7 @@ class WirelessStateMachine:
 		self.__shutdown__ = False
 		self.sequence = randint(1200, 2000)
 		self.lastpacket = None
+		self.timeout = RESPONSE_TIMEOUT
 		
 	def __del__(self):
 		self.shutdown()
@@ -271,7 +276,7 @@ class WirelessStateMachine:
 				Dot11Elt(ID=50, info='\x30\x48\x60\x6c'),
 				iface=self.interface, verbose=False)
 		self.sequence += 1
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket == None:
 			return 1
 
@@ -282,7 +287,7 @@ class WirelessStateMachine:
 				Dot11Auth(seqnum=1),
 				iface=self.interface, verbose=False)
 		self.sequence += 1
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket == None:
 			return 2
 		
@@ -298,7 +303,7 @@ class WirelessStateMachine:
 				iface=self.interface, verbose=False)
 
 		self.sequence += 1
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket == None:
 			return 3
 		
@@ -323,11 +328,11 @@ class WirelessStateMachine:
 		self.connected = False
 		return 0
 		
-	def recv(self):
+	def recv(self, bufferlen = 0):
 		"""
 		Read a frame and return the information above the Dot11 layer.
 		"""
-		sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket:
 			return self.lastpacket
 		else:
@@ -349,9 +354,9 @@ class WirelessStateMachine:
 		"""
 		Shutdown and disassociate from the AP.
 		"""
-		self.__shutdown__ = True
 		if self.connected:
 			self.close()
+		self.__shutdown__ = True
 
 class WirelessStateMachineEAP(WirelessStateMachine):
 	"""
@@ -413,6 +418,10 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		self.max_tries = 3
 		self.asso_resp_data = Dot11AssoResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID=1, info='\x02\x04\x0b\x16\x0c\x12\x18$')/Dot11Elt(ID=50, info='0H`l')
 		WirelessStateMachine.__init__(self, interface, bssid, bssid, None)
+		if essid:
+			self.networkDescriptor = WirelessNetwork(essid, bssid)
+		else:
+			self.networkDescriptor = WirelessNetwork(UNKNOWN_SSID_NAME, bssid)	# this is kind of lame
 		
 	def __del__(self):
 		self.shutdown()
@@ -435,7 +444,10 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		This method can (and often will be) called multiple times.  It
 		returns a new WirelessStateMachine instance, pre-configured for
 		communication with the client machine.  The client will already
-		be associated with the PythonSoftAP.
+		be associated with the PythonSoftAP.  The WirelessStateMachine
+		instance that is returned also contains an attribute of
+		"clientDescriptor" which contains a WirelessClient instance that
+		describes it.
 		
 		The Dot11 Authentication frames and Dot11 Association frames are
 		transfered in this call, implying the main calling thread is
@@ -454,6 +466,7 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 				continue
 			clientMAC = self.client_listener.client_queue.get(True, 1)
 			sockObj = WirelessStateMachine(self.interface, self.bssid, self.source_mac, clientMAC)
+			sockObj.clientDescriptor = WirelessClient(self.bssid, clientMAC)
 			
 			tries = self.max_tries
 			sockObj.send(Dot11Auth(seqnum=2), 0, 11, 0, True)
@@ -474,13 +487,13 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		Shutdown and join the SSIDBroadcaster and ClientListener
 		threads.
 		"""
-		WirelessStateMachine.shutdown(self)
 		if hasattr(self, 'client_listener'):
 			self.client_listener.__shutdown__ = True
 			self.client_listener.join()
 		if hasattr(self, 'ssid_broadcaster'):
 			self.ssid_broadcaster.__shutdown__ = True
 			self.ssid_broadcaster.join()
+		WirelessStateMachine.shutdown(self)
 			
 class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 	def __init__(self, interface, bssid, essid):
@@ -490,6 +503,41 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 		"""
 		WirelessStateMachineSoftAP.__init__(self, interface, bssid, essid)
 		self.privacy = PRIVACY_WPA
+		
+		# EAP Crap Goes Here
+		self.__mschap_challenge__ = None
+		self.eap_priorities = [ ]
+		self.eap_handlers = {
+								17:self.handleLEAP,
+								25:self.handlePEAP
+							}
+	
+	@property
+	def mschap_challenge(self):
+		if self.__mschap_challenge__ == None:
+			return ''.join([ pack('B', randint(0, 255)) for x in range(8) ])
+		return self.__mschap_challenge__
+	
+	@mschap_challenge.setter
+	def mschap_challenge(self, value):
+		if value == None:
+			self.__mschap_challenge__ = None
+			return
+		elif len(value) != 8:
+			raise ValueError('Invalid Challenge Length')
+		self.__mschap_challenge__ = value
+	
+	@mschap_challenge.deleter
+	def mschap_challenge(self):
+		del self.__mschap_challenge__
+	
+	def addEapType(self, eaptype):
+		if not eaptype in self.eap_handlers.keys():
+			return False
+		if eaptype in self.eap_priorities:
+			return True
+		self.eap_priorities.append(eaptype)
+		return True
 
 	def accept(self):
 		"""
@@ -528,30 +576,19 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 				break
 			if tries != self.max_tries:
 				continue
-			# TODO Do something with the username right here
-			print GOOD + "Received EAP Identity: {} From Client {}".format(data.identity, clientMAC)
+
+			eaptype = self.eap_priorities[0]
+			(errCode, eap_types) = self.eap_handlers[eaptype](sockObj, data.identity)
 			
-			while tries:
-				tries -= 1
-				sockObj.send('\x00\x00'/LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=17, id=2)/LEAP(data='\x00\x00\x00\x00\x00\x00\x00\x00'), FCfield=2, raw=True)
-				data = sockObj.recv()
-				if data == None:
-					continue
-				if not data.haslayer(LEAP):
-					continue
-				leap = data.getlayer(LEAP)
-				print GOOD + "Received LEAP MSChap Response: " + hexlify(leap.data)
-				tries = self.max_tries
-				break
-			if tries != self.max_tries:
-				continue
+			self.networkDescriptor.addClient(sockObj.clientDescriptor)
 			return sockObj, clientMAC
 			
-	def handleLEAP(self, sockObj):
+	def handleLEAP(self, sockObj, identity):
+		self.networkDescriptor.addEapType(17)
 		tries = self.max_tries
 		while tries:
 			tries -= 1
-			sockObj.send('\x00\x00'/LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=17, id=2)/LEAP(data='\x00\x00\x00\x00\x00\x00\x00\x00'), FCfield=2, raw=True)
+			sockObj.send('\x00\x00'/LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=17, id=2)/LEAP(data=self.mschap_challenge), FCfield=2, raw=True)
 			data = sockObj.recv()
 			if data == None:
 				continue
@@ -563,7 +600,22 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 					return 1, tuple(eap.eap_types)
 				continue
 			leap = data.getlayer(LEAP)
-			print GOOD + "Received LEAP MSChap Response: " + hexlify(leap.data)
-			return 0, None #TODO fix this to return a standard for useful information
+			sockObj.clientDescriptor.addIdentity(17, identity)
+			sockObj.clientDescriptor.addEapType(17)
+			sockObj.clientDescriptor.addMSChapInfo(17, self.mschap_challenge, leap.data, identity)
+			return 0, None 
+		if tries != self.max_tries:
+			return 2, None
+
+	def handlePEAP(self, sockObj, identity):
+		"""
+		This is not yet supported.  Don't even bother trying.
+		"""
+		self.networkDescriptor.addEapType(25)
+		tries = self.max_tries
+		while tries:
+			tries -= 1
+			sockObj.send('\x00\x00'/LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=25, id=2)/PEAP(version=1, flags='start'), FCfield=2, raw=True)
+			return 0, None
 		if tries != self.max_tries:
 			return 2, None

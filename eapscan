@@ -25,28 +25,30 @@
 		
 """
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 __authors__ = [ 'Spencer McIntyre', 'SecureState R&D Team' ]
 
 import sys
+try:
+	from scapy.layers.l2 import eap_types as EAP_TYPES
+except ImportError:
+	print 'Error: Missing Scapy Libraries, Please Install Scapy From The Community Repository'
+	# http://hg.secdev.org/scapy-com # needs community repository because of the extra EAP layers I added.
+	print 'Error: Now Exiting...'
+	sys.exit(1)
+
 import argparse
 import logging
-
 from time import sleep
 from os import getuid
+
 from eapeak.common import checkInterface
 from eapeak.parse import EapeakParsingEngine
 from eapeak.networks import WirelessNetwork
 from eapeak.inject import WirelessStateMachine, WirelessStateMachineEAP
 from ipfunc import sanitizeMAC, getHwAddr
 
-try:
-	from scapy.config import conf
-except ImportError:
-	print 'Error: Missing Scapy Libraries, Please Install Scapy'
-	print 'Error: Now Exiting...'
-	sys.exit(1)
-
+from scapy.config import conf
 # these edit the load_layers configuration to keep layers we don't need out and consume less memory
 not_needed_layers = [	'bluetooth', 'cdp', 'dhcp', 'dhcp6', 'dns', 'eigrp', 'hsrp', 'inet6', 'ir',
 						'isakmp', 'l2tp', 'llmnr', 'mgcp', 'mobileip', 'netbios', 'netflow', 'ntp',
@@ -60,7 +62,6 @@ del layer, not_needed_layers
 conf.ipv6_enabled = False
 
 from scapy.volatile import RandMAC
-from scapy.layers.l2 import eap_types as EAP_TYPES
 EAP_TYPES[0] = 'NONE'
 scapy_runtime_log = logging.getLogger("scapy.runtime")
 scapy_runtime_log.setLevel(logging.CRITICAL)
@@ -73,8 +74,15 @@ ERROR_SLEEP_TIME = 1.5	# time to wait between error and retry
 def eap_scan(interface, bssid, essid, check_range):
 	valid_eap_types = []
 	try:
+		status_str = ''
 		for eaptype in check_range:
-			sys.stdout.write(STATUS + 'Checking EAP Type: ' + str(eaptype) + '\r')
+			sys.stdout.write((' ' * len(status_str)) + '\r')
+			sys.stdout.flush()
+			if eaptype in EAP_TYPES:
+				status_str = STATUS + 'Checking EAP Type: ' + EAP_TYPES[eaptype] + '\r'
+			else:
+				status_str = STATUS + 'Checking EAP Type: ' + str(eaptype) + '\r'
+			sys.stdout.write(status_str)
 			sys.stdout.flush()
 			tries = 0
 			while tries < 5:
@@ -86,10 +94,13 @@ def eap_scan(interface, bssid, essid, check_range):
 					continue # try same
 				errCode = statemachine.check_eap_type(eaptype)
 				if errCode == 0:
+					sys.stdout.write((' ' * len(status_str)) + '\r')
+					sys.stdout.flush()
 					if eaptype in EAP_TYPES:
-						sys.stdout.write(GOOD + 'EAP Type: ' + EAP_TYPES[eaptype] + ' Supported\n')
+						status_str = GOOD + 'EAP Type: ' + EAP_TYPES[eaptype] + ' Supported\n'
 					else:
-						sys.stdout.write(GOOD + 'EAP Type: ' + str(eaptype) + ' Supported\n')
+						status_str = GOOD + 'EAP Type: ' + str(eaptype) + ' Supported\n'
+					sys.stdout.write(status_str)
 					sys.stdout.flush()
 					valid_eap_types.append(eaptype)
 					tries = 0
@@ -106,15 +117,18 @@ def eap_scan(interface, bssid, essid, check_range):
 					continue # try same
 			if tries == 0:
 				continue
+			sys.stdout.write((' ' * len(status_str)) + '\r')
+			sys.stdout.flush()
 			if eaptype in EAP_TYPES:
-				sys.stdout.write(ERROR + 'EAP Type: ' + EAP_TYPES[eaptype] + ' Could Not Be Determined\n')
+				status_str = ERROR + 'EAP Type: ' + EAP_TYPES[eaptype] + ' Could Not Be Determined\n'
 			else:
-				sys.stdout.write(ERROR + 'EAP Type: ' + str(eaptype) + ' Could Not Be Determined\n')
+				status_str = ERROR + 'EAP Type: ' + str(eaptype) + ' Could Not Be Determined\n'
+			sys.stdout.write(status_str)	# haha STD
 			sys.stdout.flush()
 	except KeyboardInterrupt:
 		print '\n' + STATUS + 'Caught Ctrl+C'
 		return valid_eap_types
-	sys.stdout.write('                          \n') # overwrite checking stuff
+	sys.stdout.write(' ' * len(status_str) + '\n') # overwrite checking stuff
 	sys.stdout.flush()
 	return valid_eap_types
 
@@ -156,8 +170,8 @@ def main():
 	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', required = True, default = '', help = 'target BSSID')
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
-	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'can all EAP types (4-253)')
-	parser.add_argument('--types', dest = 'eap_types', nargs = '*', action = 'store', default = [], help = 'specific EAP types to try')
+	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'scan all EAP types (4-253)')
+	parser.add_argument('--types', dest = 'eap_types', nargs = '*', action = 'store', default = [], help = 'list of specific EAP types to try')
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
 	options = parser.parse_args()
 
@@ -179,9 +193,15 @@ def main():
 		check_range = range(4, 254)
 	elif options.eap_types:
 		check_range = []
-		for i in options.eap_types:
-			if i.isdigit() and 3 < int(i) < 254:
-				check_range.append(int(i))
+		
+	
+		for eaptype in options.eap_types:
+			if eaptype.upper() in EAP_TYPES.values():
+				eaptype = str(EAP_TYPES.keys()[ EAP_TYPES.values().index(eaptype.upper()) ])
+			if eaptype.isdigit() and 3 < int(eaptype) < 254:
+				check_range.append(int(eaptype))
+			else:
+				print ERROR + 'Invalid EAP Type: ' + eaptype
 		if len(check_range) == 0:
 			print ERROR + 'No Usable EAP Types (4-253), Now Exiting...'
 			return 5

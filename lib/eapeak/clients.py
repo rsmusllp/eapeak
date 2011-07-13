@@ -70,7 +70,7 @@ class WirelessClient:
 			'r' response (packed binary string)
 			'i' identity (string)
 		Challenge and Response strings are packed binary,
-		NOT 00:00:00:00:00:00:00
+		NOT 00:00:00:00:00:00:00:00 or 0000000000000000
 		"""
 		if not identity:
 			identity = 'UNKNOWN'

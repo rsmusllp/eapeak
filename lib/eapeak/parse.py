@@ -24,7 +24,7 @@
 		
 """
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 import os
 import sys
@@ -164,12 +164,12 @@ class EapeakParsingEngine:
 				continue
 			for i in range(0, len(self.packets)):
 				if not quite:
-					sys.stdout.write("Parsing PCap File: {} {:,} of {:,} Packets Done\r".format(pcapName, i + 1, len(self.packets)))
+					sys.stdout.write("Parsing PCap File: {0} {1} of {2} Packets Done\r".format(pcapName, i + 1, len(self.packets)))
 					sys.stdout.flush()	
 				packet = self.packets[i]
 				self.parseWirelessPacket(packet)
 			if not quite:
-				sys.stdout.write("Parsing PCap File: {} {:,} of {:,} Packets Done\n".format(pcapName, i + 1, len(self.packets)))
+				sys.stdout.write("Parsing PCap File: {0} {1} of {2} Packets Done\n".format(pcapName, i + 1, len(self.packets)))
 				sys.stdout.flush()
 			self.packets = [ ]
 			self.fragment_buffer = {}
@@ -614,7 +614,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			self.screen.refresh()
 			self.screen.addstr(2, 4, 'EAPeak Capturing Live')			# this is all static, so don't use the messages queue
 			self.screen.addnstr(3, 4, 'Found ' + str(len(self.KnownNetworks)) + ' Networks', 25)
-			self.screen.addnstr(4, 4, "Processed {:,} Packets".format(self.packetCounter), 30)
+			self.screen.addnstr(4, 4, "Processed {0} Packets".format(self.packetCounter), 30)
 			self.screen.addstr(6, 4, 'Network Information:')
 			if self.curses_lower_refresh_counter == CURSES_LOWER_REFRESH_FREQUENCY:
 				self.curses_lower_refresh_counter = 1
