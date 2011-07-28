@@ -495,7 +495,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				if not self.resizeDialog():
 					break
 				continue
-			if c in [65, 117, 85]:		# 117 = ord('u')
+			if c in [65, 117, 85] and len(self.KnownNetworks):		# 117 = ord('u')
 				if self.curses_detailed:
 					if self.curses_row_offset > 0:
 						self.curses_row_offset -= 1
@@ -510,7 +510,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					else:
 						self.user_marker_pos -= 1
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-			elif c in [66, 100, 68]:	# 100 = ord('d')
+			elif c in [66, 100, 68] and len(self.KnownNetworks):	# 100 = ord('d')
 				if self.curses_detailed:
 					self.curses_row_offset += 1
 					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
@@ -534,7 +534,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					self.screen.refresh()
 					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
 				elif 0 <= (self.user_marker_pos - 1 + self.curses_row_offset) < len(self.KnownNetworks):
-					self.curses_detailed = self.KnownNetworks.keys()[self.user_marker_pos - 1 + self.curses_row_offset]
+					self.curses_detailed = self.KnownNetworks.keys()[(self.user_marker_pos - 1) + self.curses_row_offset_store]	# self.curses_row_offset_store because we just exchanged the values so the original is here now
 					self.screen.refresh()
 					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
 			elif c in [113, 81]:		# 113 = ord('q')
