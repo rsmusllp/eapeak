@@ -4,7 +4,7 @@
 	-*- coding: utf-8 -*-
 	eapwn
 	
-	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
+	Author: Spencer McIntyre (Steiner) <smcintyre [at] securestate [dot] com>
 	
 	Copyright 2011 SecureState
 	
@@ -55,7 +55,7 @@ def main():
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', default = '', help = 'target BSSID')
 	#parser.add_argument('--eap', dest = 'use_eap', action = 'store_true', default = False, help = 'enable fake EAP requests')
-	parser.add_argument('--types', dest = 'eap_types', nargs = '*', action = 'store', default = [ '17' ], help = 'list of specific EAP types to support')
+	parser.add_argument('--types', dest = 'eap_types', nargs = '+', action = 'store', default = [ '17' ], help = 'list of specific EAP types to support')
 	parser.add_argument('--mschap', dest = 'mschap_challenge', action = 'store', default = None, help = 'specify a static MSChap challenge to use')
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
 	options = parser.parse_args()

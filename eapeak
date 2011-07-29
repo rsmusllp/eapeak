@@ -93,15 +93,14 @@ def main():
 	
 	try:																	# default to the systems libraries
 		from eapeak.parse import EapeakParsingEngine						# revert to ./lib on fail for development
-		from eapeak.parse import CursesEapeakParsingEngine
 	except ImportError:
 		sys.path.append(os.getcwd() + os.sep + 'lib')
 		from eapeak.parse import EapeakParsingEngine
-		from eapeak.parse import CursesEapeakParsingEngine
+	from eapeak.parse import CursesEapeakParsingEngine
 	
 	parser = argparse.ArgumentParser(description = 'EAPeak: Analysis tool for EAP enabled wireless networks.', conflict_handler='resolve')
-	parser.add_argument('-f', '--file', dest = 'pcaps', nargs = '*', action = 'store', default = [], help = 'the path to the PCap file(s)')
-	parser.add_argument('-s', '--ssid', dest = 'target_ssids', nargs = '*', action = 'store', help = 'specific SSID(s) to analyze')
+	parser.add_argument('-f', '--file', dest = 'pcaps', nargs = '+', action = 'store', default = [], help = 'the path to the PCap file(s)')
+	parser.add_argument('-s', '--ssid', dest = 'target_ssids', nargs = '+', action = 'store', help = 'specific SSID(s) to analyze')
 	parser.add_argument('-l', '--live', dest = 'capture_live', action = 'store_true', default = False, help = 'analyze packets live')
 	if curses_enabled:
 		parser.add_argument('-c', '--curses', dest = 'use_curses', action = 'store_true', default = False, help = 'use the BETA curses interface when capturing live')

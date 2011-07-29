@@ -4,7 +4,7 @@
 	-*- coding: utf-8 -*-
 	eapscan
 	
-	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
+	Author: Spencer McIntyre (Steiner) <smcintyre [at] securestate [dot] com>
 	
 	Copyright 2011 SecureState
 	
@@ -171,7 +171,7 @@ def main():
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'scan all EAP types (4-253)')
-	parser.add_argument('--types', dest = 'eap_types', nargs = '*', action = 'store', default = [], help = 'list of specific EAP types to try')
+	parser.add_argument('--types', dest = 'eap_types', nargs = '+', action = 'store', default = [], help = 'list of specific EAP types to try')
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
 	options = parser.parse_args()
 
@@ -193,8 +193,6 @@ def main():
 		check_range = range(4, 254)
 	elif options.eap_types:
 		check_range = []
-		
-	
 		for eaptype in options.eap_types:
 			if eaptype.upper() in EAP_TYPES.values():
 				eaptype = str(EAP_TYPES.keys()[ EAP_TYPES.values().index(eaptype.upper()) ])
