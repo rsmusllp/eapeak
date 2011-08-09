@@ -104,6 +104,33 @@ class SSIDBroadcaster(threading.Thread):
 		elif value == PRIVACY_WPA:
 			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 
+	def sendBeacon(self):
+		"""
+		Convenience function for sending beacons without starting a thread
+		"""
+		self.beacon.getlayer(Dot11).SC = self.__unfuckupSC__()
+		sendp(self.beacon, iface=self.interface, verbose=False)
+	
+	@staticmethod
+	def sendBeaconEx(essid, interface, privacy = PRIVACY_NONE, bssid = None, channel = 6):
+		"""
+		Convenience function for sending beacons without a thread or creating an instance
+		"""
+		if not bssid:
+			bssid = getHwAddr(interface)
+		channel = chr(channel)
+		sequence = randint(1200, 2000)
+		
+		if privacy in [PRIVACY_NONE, 'none', 'NONE']:
+			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+		elif privacy in [PRIVACY_WEP, 'wep', 'WEP']:
+			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+		elif privacy in [PRIVACY_WPA, 'wpa', 'WPA']:
+			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+		else:
+			raise Exception('Invalid privacy setting')
+		sendp(beacon, iface=interface, verbose=False)
+		
 class ClientListener(threading.Thread):
 	"""
 	This object is a thread-friendly listener for Client connection
