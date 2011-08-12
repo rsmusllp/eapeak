@@ -206,7 +206,10 @@ class EapeakParsingEngine:
 					continue
 				ssid = ssid.find('essid')
 				if isinstance(ssid, ElementTree.Element):
-					ssid = ssid.text.strip()
+					if ssid.text == None:
+						ssid = UNKNOWN_SSID_NAME
+					else:
+						ssid = ssid.text.strip()
 					newNetwork = eapeak.networks.WirelessNetwork(ssid)
 				else:
 					continue
