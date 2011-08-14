@@ -271,7 +271,7 @@ class EapeakParsingEngine:
 					If there is a client and the network is added to KnownNetworks each time this occurs then the client will appear to under each network but only
 					be associated with the single BSSID.  This problem needs to be addressed and throughly tested.
 				"""
-			sys.stdout.write(" Done")
+			sys.stdout.write(" Done\n")
 			sys.stdout.flush()
 	
 	def exportXML(self, filename = XML_FILE_NAME):

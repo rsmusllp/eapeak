@@ -167,10 +167,9 @@ def main():
 				
 	if xmlFiles:
 		eapeakParser.parseXMLFiles(xmlFiles, False)
-		print ''
 	if pcapFiles:
 		eapeakParser.parsePCapFiles(pcapFiles, False)
-		print ''
+	print ''
 	del pcapFiles, xmlFiles, storedFiles
 	
 	if capture_live:

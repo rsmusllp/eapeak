@@ -4,9 +4,8 @@
 EAPeak - Analysis tool for EAP enabled wireless networks.
 
 .SH SYNOPSIS
-eapeak [-h] [-f [PCAPS [PCAPS ...]]]
-       [-s [TARGET_SSIDS [TARGET_SSIDS ...]]] [-l] [-c] [-i INTERFACE]
-       [-v] [--no-xml] [--export-x509]
+eapeak [-h] [-f PCAPS [PCAPS ...]] [-s TARGET_SSIDS [TARGET_SSIDS ...]]
+       [-l] [-c] [-i INTERFACE] [-v] [--no-xml] [--export-x509]
        [--x509-format {der,pem}]
 
 .SH DESCRIPTION
@@ -23,18 +22,17 @@ have been associated with it and the EAP type(s) that the client seems
 to support.
 
 .SH OPTIONS 
-usage: eapeak [-h] [-f [PCAPS [PCAPS ...]]]
-              [-s [TARGET_SSIDS [TARGET_SSIDS ...]]] [-l] [-c] [-i INTERFACE]
-              [-v] [--no-xml] [--export-x509]
+usage: eapeak [-h] [-f PCAPS [PCAPS ...]] [-s TARGET_SSIDS [TARGET_SSIDS ...]]
+              [-l] [-c] [-i INTERFACE] [-v] [--no-xml] [--export-x509]
               [--x509-format {der,pem}]
 
-EAPeak: Analyze Wireless PCaps
+EAPeak: Analysis tool for EAP enabled wireless networks.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -f [PCAPS [PCAPS ...]], --file [PCAPS [PCAPS ...]]
+  -f PCAPS [PCAPS ...], --file PCAPS [PCAPS ...]
                         the path to the PCap file(s)
-  -s [TARGET_SSIDS [TARGET_SSIDS ...]], --ssid [TARGET_SSIDS [TARGET_SSIDS ...]]
+  -s TARGET_SSIDS [TARGET_SSIDS ...], --ssid TARGET_SSIDS [TARGET_SSIDS ...]
                         specific SSID(s) to analyze
   -l, --live            analyze packets live
   -c, --curses          use the BETA curses interface when capturing live
@@ -42,6 +40,8 @@ optional arguments:
                         interface to use when capturing live
   -v, --version         show program's version number and exit
   --no-xml              dont store xml data when capturing live
+
+certificate export options:
   --export-x509         start EAPeak certificate export wizard
   --x509-format {der,pem}
                         format to save certificates as, default: pem
