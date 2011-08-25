@@ -24,7 +24,7 @@
 		
 """
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 import os
 import sys
@@ -43,7 +43,7 @@ from xml.etree import ElementTree
 from base64 import standard_b64decode as b64decode
 from M2Crypto import X509
 
-from scapy.utils import rdpcap
+from scapy.utils import PcapReader
 from scapy.layers.l2 import eap_types as EAP_TYPES
 import scapy.packet
 import scapy.layers.all
@@ -151,8 +151,17 @@ class EapeakParsingEngine:
 					sys.stdout.write("Skipping File {0}: Permissions Issue\n".format(pcap))
 					sys.stdout.flush()
 				continue
+			pcapr = PcapReader(pcap)
+			packet = pcapr.read_packet()
+			i = 1
 			try:
-				self.packets.extend(rdpcap(pcapFiles[i]))
+				while packet != None:
+					if not quite:
+						sys.stdout.write('Parsing File: ' + pcap + ' Packets Done: ' + str(i) + '\r')
+						sys.stdout.flush()
+					self.parseWirelessPacket(packet)
+					packet = pcapr.read_packet()
+					i += 1
 			except KeyboardInterrupt:
 				if not quite:
 					sys.stdout.write("Skipping File {0} Due To Ctl+C\n".format(pcap))
@@ -161,18 +170,8 @@ class EapeakParsingEngine:
 				if not quite:
 					sys.stdout.write("Skipping File {0} Due To Scapy Exception\n".format(pcap))
 					sys.stdout.flush()
-				continue
-			for i in range(0, len(self.packets)):
-				if not quite:
-					sys.stdout.write("Parsing PCap File: {0} {1} of {2} Packets Done\r".format(pcapName, i + 1, len(self.packets)))
-					sys.stdout.flush()	
-				packet = self.packets[i]
-				self.parseWirelessPacket(packet)
-			if not quite:
-				sys.stdout.write("Parsing PCap File: {0} {1} of {2} Packets Done\n".format(pcapName, i + 1, len(self.packets)))
-				sys.stdout.flush()
-			self.packets = [ ]
 			self.fragment_buffer = {}
+			pcapr.close()
 			
 	def parseXMLFiles(self, xmlFiles, quite = True):
 		"""
