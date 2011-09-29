@@ -1,3 +1,19 @@
+::::::::::     :::     :::::::::  ::::::::::     :::     :::    ::: 
+:+:          :+: :+:   :+:    :+: :+:          :+: :+:   :+:   :+:  
++:+         +:+   +:+  +:+    +:+ +:+         +:+   +:+  +:+  +:+   
++#++:++#   +#++:++#++: +#++:++#+  +#++:++#   +#++:++#++: +#++:++    
++#+        +#+     +#+ +#+        +#+        +#+     +#+ +#+  +#+   
+#+#        #+#     #+# #+#        #+#        #+#     #+# #+#   #+#  
+########## ###     ### ###        ########## ###     ### ###    ### 
+
+== Summary ==
+EAPeak is a suite of source tools to facilitate auditing of wireless
+networks that utilize the Extensible Authentication Protocol framework
+for authentication. It is meant to give useful information relating to
+the security of these networks for pentesters to use while searching for
+vulnerabilities. 
+
+== License ==
 Copyright (C) 2011, SecureState
 
 This program is free software; you can redistribute it and/or modify
@@ -22,7 +38,10 @@ This license does not apply to the following components:
 
 == About ==
 Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
-Home Page: http://www.securestate.com/
+Author Home Page: http://www.securestate.com/
+Project Home Page: http://code.google.com/p/eapeak
+Project Blog: http://blog.securestate.com/?tag=/EAPeak
+
 
 Please Send Bug Reports To: <eapeakdev [at] securestate [dot] com>
 
