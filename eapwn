@@ -25,7 +25,7 @@
 		
 """
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 __authors__ = [ 'Spencer McIntyre', 'SecureState R&D Team' ]
 
 import sys
@@ -54,6 +54,7 @@ def main():
 	parser.add_argument('-e', '--essid', dest = 'essid', action = 'store', required = True, default = '', help = 'target ESSID')
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', default = '', help = 'target BSSID')
+	parser.add_argument('-c', '--channel', dest = 'channel', action = 'store', required = False, default = 0, type = int, help = 'target channel')
 	#parser.add_argument('--eap', dest = 'use_eap', action = 'store_true', default = False, help = 'enable fake EAP requests')
 	parser.add_argument('--types', dest = 'eap_types', nargs = '+', action = 'store', default = [ '17' ], help = 'list of specific EAP types to support')
 	parser.add_argument('--mschap', dest = 'mschap_challenge', action = 'store', default = None, help = 'specify a static MSChap challenge to use')
@@ -64,6 +65,14 @@ def main():
 	if not checkInterface(options.iface) in [ 0, 1 ]:
 		print ERROR + 'Invalid Interface, Now Exiting...'
 		return 1
+	
+	if options.channel:
+		if not 0 < options.channel < 15:
+			print ERROR + 'Invalid Channel Selected, Must Be Between 1-14'
+			return 6
+		if not setInterfaceChannel(options.iface, options.channel, True):
+			print ERROR + 'Failed To Set The Selected Channel'
+			return 7
 	
 	if options.bssid:
 		bssid = options.bssid

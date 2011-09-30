@@ -571,7 +571,6 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 		This extends the WirelessStateMachineSoftAP accept() method but
 		adds in the exchange of EAP identities.
 		"""
-		# FIXME Get rid of all the debug print messages in this function
 		while not self.__shutdown__:
 			(sockObj, clientMAC) = WirelessStateMachineSoftAP.accept(self)
 			tries = self.max_tries

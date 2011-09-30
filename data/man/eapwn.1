@@ -4,7 +4,7 @@
 EAPwn - Python Soft AP For Client-Side EAP-Orientated Attacks
 
 .SH SYNOPSIS
-eapwn [-h] [-v] -e ESSID -i IFACE [-b BSSID]
+eapwn [-h] [-v] -e ESSID -i IFACE [-b BSSID] [-c CHANNEL]
       [--types EAP_TYPES [EAP_TYPES ...]] [--mschap MSCHAP_CHALLENGE]
       [--xml]
 
@@ -23,7 +23,7 @@ injection.  Use the Aircrack-ng utility to configure the wireless
 interface, and ensure that it is on the same channel as the target AP. 
 
 .SH OPTIONS 
-usage: eapwn [-h] [-v] -e ESSID -i IFACE [-b BSSID]
+usage: eapwn [-h] [-v] -e ESSID -i IFACE [-b BSSID] [-c CHANNEL]
              [--types EAP_TYPES [EAP_TYPES ...]] [--mschap MSCHAP_CHALLENGE]
              [--xml]
 
@@ -38,6 +38,8 @@ optional arguments:
                         interface to use when capturing live
   -b BSSID, --bssid BSSID
                         target BSSID
+  -c CHANNEL, --channel CHANNEL
+                        target channel
   --types EAP_TYPES [EAP_TYPES ...]
                         list of specific EAP types to support
   --mschap MSCHAP_CHALLENGE
@@ -45,7 +47,7 @@ optional arguments:
   --xml                 export data to xml
 
 .SH RESOURCES
-EAPeak relies on the Scapy libraries from the community repository.
+EAPwn relies on the Scapy libraries from the community repository.
 
 .SH COPYRIGHT
 Copyright 2011 SecureState 

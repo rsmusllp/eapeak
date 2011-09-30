@@ -7,11 +7,11 @@
 ########## ###     ### ###        ########## ###     ### ###    ### 
 
 == Summary ==
-EAPeak is a suite of source tools to facilitate auditing of wireless
-networks that utilize the Extensible Authentication Protocol framework
-for authentication. It is meant to give useful information relating to
-the security of these networks for pentesters to use while searching for
-vulnerabilities. 
+EAPeak is a suite of open source tools to facilitate auditing of
+wireless networks that utilize the Extensible Authentication Protocol
+framework for authentication. It is meant to give useful information
+relating to the security of these networks for pentesters to use while
+searching for vulnerabilities. 
 
 == License ==
 Copyright (C) 2011, SecureState

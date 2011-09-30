@@ -4,7 +4,7 @@
 EAPScan - Actively Enumerate 802.1x Wireless Networks.
 
 .SH SYNOPSIS
-eapscan [-h] -e ESSID -b BSSID -i IFACE [-v] [--all]
+eapscan [-h] -e ESSID -b BSSID -i IFACE [-v] [-c CHANNEL] [--all]
         [--types [EAP_TYPES [EAP_TYPES ...]]] [--xml]
 
 .SH DESCRIPTION
@@ -26,8 +26,8 @@ likely that the targeted Access Point does not support EAP
 authentication.
 
 .SH OPTIONS 
-usage: eapscan [-h] -e ESSID -b BSSID -i IFACE [-v] [--all]
-               [--types [EAP_TYPES [EAP_TYPES ...]]] [--xml]
+usage: eapscan [-h] -e ESSID -b BSSID -i IFACE [-v] [-c CHANNEL] [--all]
+               [--types EAP_TYPES [EAP_TYPES ...]] [--xml]
 
 EAPScan: Actively Enumerate 802.1x Wireless Networks
 
@@ -40,8 +40,10 @@ optional arguments:
   -i IFACE, --iface IFACE
                         interface to use when capturing live
   -v, --version         show program's version number and exit
+  -c CHANNEL, --channel CHANNEL
+                        target channel
   --all                 scan all EAP types (4-253)
-  --types [EAP_TYPES [EAP_TYPES ...]]
+  --types EAP_TYPES [EAP_TYPES ...]
                         list of specific EAP types to try
   --xml                 export data to xml
 

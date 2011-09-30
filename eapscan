@@ -25,7 +25,7 @@
 		
 """
 
-__version__ = '0.0.5'
+__version__ = '0.0.6'
 __authors__ = [ 'Spencer McIntyre', 'SecureState R&D Team' ]
 
 import sys
@@ -42,7 +42,7 @@ import logging
 from time import sleep
 from os import getuid
 
-from eapeak.common import checkInterface
+from eapeak.common import checkInterface, setInterfaceChannel
 from eapeak.parse import EapeakParsingEngine
 from eapeak.networks import WirelessNetwork
 from eapeak.inject import WirelessStateMachine, WirelessStateMachineEAP
@@ -170,6 +170,7 @@ def main():
 	parser.add_argument('-b', '--bssid', dest = 'bssid', action = 'store', required = True, default = '', help = 'target BSSID')
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
+	parser.add_argument('-c', '--channel', dest = 'channel', action = 'store', required = False, default = 0, type = int, help = 'target channel')
 	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'scan all EAP types (4-253)')
 	parser.add_argument('--types', dest = 'eap_types', nargs = '+', action = 'store', default = [], help = 'list of specific EAP types to try')
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
@@ -208,6 +209,14 @@ def main():
 		check_range.sort()
 		check_range = check_range[4:]
 
+	if options.channel:
+		if not 0 < options.channel < 15:
+			print ERROR + 'Invalid Channel Selected, Must Be Between 1-14'
+			return 6
+		if not setInterfaceChannel(options.iface, options.channel, True):
+			print ERROR + 'Failed To Set The Selected Channel'
+			return 7
+		
 	# Make sure the AP is responding
 	if not check_ap_connection(options.iface, options.bssid, options.essid, False):
 		print ERROR + 'Now Exiting...'
