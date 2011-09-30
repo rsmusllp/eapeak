@@ -24,10 +24,25 @@
 
 """
 
+from os import listdir
+from fcntl import ioctl
+from struct import pack, unpack
+from socket import socket, AF_INET, SOCK_DGRAM
+
+# various #define statments from Kernel Header files
+SIOCSIWFREQ	= 0x8B04
+SIOCGIWFREQ	= 0x8B05
+SIOCGIFADDR = 0x8915
+
+# from linux/if.h
+IFNAMSIZ = 16
+
 BSSID_SEARCH_RECURSION = 3
 BSSIDPositionMap = { 0:'3', 1:'1', 2:'2', 8:'3', 9:'1', 10:'2' }
 SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
 DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
+FreqToChanMap = { 	2412:1, 2417:2, 2422:3, 2427:4, 2432:5, 2437:6, 2442:7,
+					2447:8, 2452:9, 2457:10, 2462:11, 2467:12, 2472:13, 2484:14	}
 
 def getBSSID(packet):
 	"""
@@ -97,15 +112,12 @@ def checkInterface(ifname):
 		2: "Iface Does Not Exist"
 	}
 	"""
-	from socket import socket, AF_INET, SOCK_DGRAM
-	from fcntl import ioctl
-	from struct import pack
 	from os import name
 	if name != 'posix':
 		return -2
-	s = socket(AF_INET, SOCK_DGRAM)
+	sock = socket(AF_INET, SOCK_DGRAM)
 	try:
-		addr = ioctl(s.fileno(), 0x8915, pack('256s', ifname[:15]))[20:24]
+		addr = ioctl(sock.fileno(), SIOCGIFADDR, pack('256s', ifname[:15]))[20:24]
 	except IOError as err:
 		if err.errno == 99:
 			return 1
@@ -113,3 +125,58 @@ def checkInterface(ifname):
 			return 2
 		return -1
 	return 0
+
+def getInterfaceChannel(ifname, returnFreq = False):
+	"""
+	This Provides a pythonic interface for querying the channel or
+	frequency that a wireless card is using.  To obtain the value as a
+	frequency set returnFreq to True.
+	Returns channel or frequency on success, negative number on error.
+	"""
+	if not checkInterface(ifname) in [0, 1]:
+		return -1
+	packstr = str(IFNAMSIZ) + 'sh14x'
+	sock = socket(AF_INET, SOCK_DGRAM)
+	freq = unpack(packstr, ioctl(sock.fileno(), SIOCGIWFREQ, pack(packstr, 'wlan6', 0)))[1] # this is in MHz
+	if returnFreq:
+		return freq
+	if freq in FreqToChanMap:
+		return FreqToChanMap[freq]
+	else:
+		return -2
+
+def setInterfaceChannel(ifname, channel, zealous = False):
+	"""
+	This provides a pythonic interface for changing the the channel on a
+	wireless interface.  In addition to configuring the wireless card
+	via channel, the user can also specify a frequency in MHz which will
+	be translated to a channel. The zealous option addresses a common
+	problem when using airmon-ng  to configure the monitor interface.
+	This problem occurs when an interface such as mon0 is being used for
+	injection however, the channel must be set on wlan0.
+	Returns True on success, False otherwise.
+	"""
+	if (2411 < channel < 2485) and channel in FreqToChanMap:	# this will allow the channel to be set from a frequency in MHz
+		channel = FreqToChanMap[channel]
+	if not 0 < channel < 15:
+		return False
+	if not checkInterface(ifname) in [0, 1]:
+		return False
+	packstr = str(IFNAMSIZ) + 'sb15x'
+	sock = socket(AF_INET, SOCK_DGRAM)
+	
+	if zealous:
+		interfaces = listdir('/sys/class/net/' + ifname + '/phy80211/device/net')
+		interfaces.remove(ifname)
+		interfaces.insert(0, ifname)
+	else:
+		interfaces = [ ifname ]
+	for ifname in interfaces:
+		try:
+			result = ioctl(sock.fileno(), SIOCSIWFREQ, pack(packstr, ifname, channel))
+		except IOError as err:
+			return False
+		result = (unpack(packstr, result)[1] == channel and getInterfaceChannel(ifname) == channel)
+		if result or not zealous:
+			return result
+	return False
