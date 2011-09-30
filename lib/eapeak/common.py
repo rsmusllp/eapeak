@@ -137,7 +137,7 @@ def getInterfaceChannel(ifname, returnFreq = False):
 		return -1
 	packstr = str(IFNAMSIZ) + 'sh14x'
 	sock = socket(AF_INET, SOCK_DGRAM)
-	freq = unpack(packstr, ioctl(sock.fileno(), SIOCGIWFREQ, pack(packstr, 'wlan6', 0)))[1] # this is in MHz
+	freq = unpack(packstr, ioctl(sock.fileno(), SIOCGIWFREQ, pack(packstr, ifname, 0)))[1] # this is in MHz
 	if returnFreq:
 		return freq
 	if freq in FreqToChanMap:
