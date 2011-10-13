@@ -137,7 +137,10 @@ def getInterfaceChannel(ifname, returnFreq = False):
 		return -1
 	packstr = str(IFNAMSIZ) + 'sh14x'
 	sock = socket(AF_INET, SOCK_DGRAM)
-	freq = unpack(packstr, ioctl(sock.fileno(), SIOCGIWFREQ, pack(packstr, ifname, 0)))[1] # this is in MHz
+	try:
+		freq = unpack(packstr, ioctl(sock.fileno(), SIOCGIWFREQ, pack(packstr, ifname, 0)))[1] # this is in MHz
+	except IOError:
+		return -2
 	if returnFreq:
 		return freq
 	if freq in FreqToChanMap:
@@ -167,7 +170,8 @@ def setInterfaceChannel(ifname, channel, zealous = False):
 	
 	if zealous:
 		interfaces = listdir('/sys/class/net/' + ifname + '/phy80211/device/net')
-		interfaces.remove(ifname)
+		if ifname in interfaces:
+			interfaces.remove(ifname)
 		interfaces.insert(0, ifname)
 	else:
 		interfaces = [ ifname ]

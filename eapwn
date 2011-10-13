@@ -39,7 +39,7 @@ except ImportError:
 
 import argparse
 from binascii import unhexlify
-from eapeak.common import checkInterface
+from eapeak.common import checkInterface, setInterfaceChannel
 from eapeak.inject import *
 from eapeak.parse import EapeakParsingEngine
 from ipfunc import getHwAddr
