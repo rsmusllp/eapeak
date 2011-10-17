@@ -390,16 +390,17 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 	This is to keep the EAP functionality seperate so the core State-
 	Machine can be repurposed for other projects.
 	"""
-	def check_eap_type(self, eaptype):
+	def check_eap_type(self, eaptype, outer_identity = 'user'):
 		"""
 		Check that an eaptype is supported.
 		errDict = {
 			0:"supported",
 			1:"not supported",
-			2:"could not determine"
+			2:"could not determine",
+			3:"identity rejected"
 		}
 		"""
-		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, identity='user')
+		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, identity=outer_identity)
 		self.sequence += 1
 		eap_legacy_nak = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0, len=6)/EAP(code=2, type=3, id=1, eap_types=[ eaptype ])
 		self.sequence += 1
@@ -410,6 +411,8 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 			if not self.lastpacket == None:
 				if self.lastpacket.haslayer('EAP'):
 					fields = self.lastpacket.getlayer(EAP).fields
+					if fields['code'] == 4:	# 4 is a failure
+						return 3
 					if 'type' in fields and fields['type'] == eaptype:
 						return 0
 					break

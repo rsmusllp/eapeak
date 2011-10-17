@@ -112,7 +112,7 @@ class WirelessClient:
 				if eapType in EAP_TYPES.keys():
 					output += ('\t' * tabs) + '\t' + EAP_TYPES[eapType] + '\n'
 				else:
-					output += ('\t' * tabs) + '\tEAP Code: ' + str(eapType) + '\n'
+					output += ('\t' * tabs) + '\tEAP Type #' + str(eapType) + '\n'
 		if self.mschap:
 			the_cheese_stands_alone = True
 			for respObj in self.mschap:

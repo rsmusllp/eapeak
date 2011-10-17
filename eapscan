@@ -25,6 +25,8 @@
 		
 """
 
+# TODO: Add verbosity options to display BSSID and Client MAC addresses
+
 __version__ = '0.0.6'
 __authors__ = [ 'Spencer McIntyre', 'SecureState R&D Team' ]
 
@@ -71,7 +73,7 @@ STATUS = '\033[1;34m[*]\033[1;m '
 ERROR = '\033[1;31m[-]\033[1;m '
 ERROR_SLEEP_TIME = 1.5	# time to wait between error and retry
 
-def eap_scan(interface, bssid, essid, check_range):
+def eap_scan(interface, bssid, essid, check_range, outer_identity):
 	valid_eap_types = []
 	try:
 		status_str = ''
@@ -92,8 +94,8 @@ def eap_scan(interface, bssid, essid, check_range):
 					sleep(ERROR_SLEEP_TIME)
 					tries += 1
 					continue # try same
-				errCode = statemachine.check_eap_type(eaptype)
-				if errCode == 0:
+				errCode = statemachine.check_eap_type(eaptype, outer_identity)
+				if errCode == 0:	# supported
 					sys.stdout.write((' ' * len(status_str)) + '\r')
 					sys.stdout.flush()
 					if eaptype in EAP_TYPES:
@@ -106,15 +108,22 @@ def eap_scan(interface, bssid, essid, check_range):
 					tries = 0
 					statemachine.close()
 					break # try next
-				elif errCode == 1:
+				elif errCode == 1:	# not supported
 					tries = 0
 					statemachine.close()
 					break # try next
-				elif errCode == 2:
+				elif errCode == 2:	# unknown error
 					sleep(ERROR_SLEEP_TIME)
 					tries += 1
 					statemachine.close()
 					continue # try same
+				elif errCode == 3:	# identity was rejected
+					tries = 0
+					statemachine.close()
+					sys.stdout.write((' ' * len(status_str)) + '\r')
+					sys.stdout.flush()
+					print ERROR + 'Identity String \'' + outer_identity + '\' Was Rejected'
+					return valid_eap_types	# should be empty but return it anyways
 			if tries == 0:
 				continue
 			sys.stdout.write((' ' * len(status_str)) + '\r')
@@ -172,6 +181,7 @@ def main():
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	parser.add_argument('-c', '--channel', dest = 'channel', action = 'store', required = False, default = 0, type = int, help = 'target channel')
 	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'scan all EAP types (4-253)')
+	parser.add_argument('--identity', dest = 'identity', action = 'store', default = 'eapscan', help = 'EAP outer identity string')
 	parser.add_argument('--types', dest = 'eap_types', nargs = '+', action = 'store', default = [], help = 'list of specific EAP types to try')
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
 	options = parser.parse_args()
@@ -216,14 +226,14 @@ def main():
 		if not setInterfaceChannel(options.iface, options.channel, True):
 			print ERROR + 'Failed To Set The Selected Channel'
 			return 7
-		
+
 	# Make sure the AP is responding
 	if not check_ap_connection(options.iface, options.bssid, options.essid, False):
 		print ERROR + 'Now Exiting...'
 		return 0
 
 	# Scan for the eap types
-	valid_eap_types = eap_scan(options.iface, options.bssid, options.essid, check_range)
+	valid_eap_types = eap_scan(options.iface, options.bssid, options.essid, check_range, options.identity)
 
 	if options.save_xml:
 		eapeakParser = EapeakParsingEngine()

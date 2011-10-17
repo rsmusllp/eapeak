@@ -103,14 +103,14 @@ class EapeakParsingEngine:
 	OrphanedBSSIDs: holds BSSIDs that are not associated with a known SSID
 	fragment_buffer: holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
 	"""
-	def __init__(self, targetSSIDs = []):
+	def __init__(self, targetSSIDs = [ ]):
 		self.KnownNetworks = { }							# holds wireless network objects, indexed by SSID if available, BSSID if orphaned
 		self.BSSIDToSSIDMap = { }							# holds SSIDs, indexed by BSSIDS, so you can obtain network objects by BSSID
 		self.OrphanedBSSIDs = [ ]							# holds BSSIDs that are not associated with a known SSID
 		self.packets = [ ]
 		self.targetSSIDs = targetSSIDs
 		self.packetCounter = 0
-		self.fragment_buffer = {}							# holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
+		self.fragment_buffer = { }							# holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
 		
 	def parseLiveCapture(self, packet, quite = True):
 		"""
