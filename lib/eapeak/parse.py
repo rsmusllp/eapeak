@@ -24,6 +24,8 @@
 		
 """
 
+# TODO: remove clients with an eap identity of eapscan because they're probably us.
+
 __version__ = '0.1.4'
 
 import os
@@ -199,12 +201,12 @@ class EapeakParsingEngine:
 			e = ElementTree.parse(xmlfile)
 			for network in e.findall('wireless-network'):
 				ssid = network.find('SSID')
-				if not isinstance(ssid, ElementTree.Element) or not isinstance(ssid.find('type'), ElementTree.Element):
+				if not ElementTree.iselement(ssid) or not ElementTree.iselement(ssid.find('type')):
 					continue
 				elif ssid.find('type').text.strip() != 'Beacon':
 					continue
 				ssid = ssid.find('essid')
-				if isinstance(ssid, ElementTree.Element):
+				if ElementTree.iselement(ssid):
 					if ssid.text == None:
 						ssid = UNKNOWN_SSID_NAME
 					else:
@@ -221,21 +223,21 @@ class EapeakParsingEngine:
 						self.BSSIDToSSIDMap[bssid] = bssid
 						self.OrphanedBSSIDs.append(bssid)
 				eaptypes = network.find('SSID').find('eap-types')
-				if isinstance(eaptypes, ElementTree.Element):
+				if ElementTree.iselement(eaptypes):
 					for eaptype in eaptypes.text.strip().split(','):
 						if eaptype.isdigit():
 							newNetwork.addEapType(int(eaptype))
 							
 				for client in network.findall('wireless-client'):
 					bssid = client.find('client-bssid')
-					if isinstance(bssid, ElementTree.Element):
+					if ElementTree.iselement(bssid):
 						bssid = bssid.text.strip()
 					else:
 						continue
 					client_mac = client.find('client-mac').text.strip()
 					newClient = eapeak.clients.WirelessClient(bssid, client_mac)
 					eaptypes = client.find('eap-types')
-					if isinstance(eaptypes, ElementTree.Element):
+					if ElementTree.iselement(eaptypes):
 						eaptypes = eaptypes.text
 						if eaptypes != None:
 							for eaptype in eaptypes.strip().split(','):

@@ -25,6 +25,7 @@
 """
 
 from os import listdir
+from os.path import isdir
 from fcntl import ioctl
 from struct import pack, unpack
 from socket import socket, AF_INET, SOCK_DGRAM
@@ -168,7 +169,7 @@ def setInterfaceChannel(ifname, channel, zealous = False):
 	packstr = str(IFNAMSIZ) + 'sb15x'
 	sock = socket(AF_INET, SOCK_DGRAM)
 	
-	if zealous:
+	if zealous and isdir('/sys/class/net/' + ifname + '/phy80211/device/net'):
 		interfaces = listdir('/sys/class/net/' + ifname + '/phy80211/device/net')
 		if ifname in interfaces:
 			interfaces.remove(ifname)
