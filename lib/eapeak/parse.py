@@ -164,6 +164,11 @@ class EapeakParsingEngine:
 					self.parseWirelessPacket(packet)
 					packet = pcapr.read_packet()
 					i += 1
+				i -= 1
+				if not quite:
+					sys.stdout.write((' ' * len('Parsing File: ' + pcap + ' Packets Done: ' + str(i))) + '\r')
+					sys.stdout.write('Done With File: ' + pcap + ' Read ' + str(i) + ' Packets\n')
+					sys.stdout.flush()
 			except KeyboardInterrupt:
 				if not quite:
 					sys.stdout.write("Skipping File {0} Due To Ctl+C\n".format(pcap))
