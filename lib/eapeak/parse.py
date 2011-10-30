@@ -483,7 +483,11 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		self.screen.addstr(4, TAB_LENGTH, 'Processed 0 Packets')
 		self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 		self.screen.refresh()
-		curses.curs_set(0)
+		try:
+			curses.curs_set(1)
+			curses.curs_set(0)
+		except curses.error:								# ignore exceptions from terminals that don't support setting the cursor's visibility
+			pass
 		curses.noecho()
 		curses.cbreak()
 		self.curses_enabled = True
