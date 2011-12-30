@@ -59,7 +59,8 @@ not_needed_layers = [	'bluetooth', 'cdp', 'dhcp', 'dhcp6', 'dns', 'eigrp', 'hsrp
 					]
 
 for layer in not_needed_layers:
-	conf.load_layers.remove(layer)
+	if layer in conf.load_layers:
+		conf.load_layers.remove(layer)
 del layer, not_needed_layers
 conf.ipv6_enabled = False
 
@@ -180,7 +181,7 @@ def main():
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	parser.add_argument('-c', '--channel', dest = 'channel', action = 'store', required = False, default = 0, type = int, help = 'target channel')
-	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'scan all EAP types (4-253)')
+	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'scan all EAP types (4-254)')
 	parser.add_argument('--identity', dest = 'identity', action = 'store', default = 'eapscan', help = 'EAP outer identity string')
 	parser.add_argument('--types', dest = 'eap_types', nargs = '+', action = 'store', default = [], help = 'list of specific EAP types to try')
 	parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml')
@@ -207,12 +208,12 @@ def main():
 		for eaptype in options.eap_types:
 			if eaptype.upper() in EAP_TYPES.values():
 				eaptype = str(EAP_TYPES.keys()[ EAP_TYPES.values().index(eaptype.upper()) ])
-			if eaptype.isdigit() and 3 < int(eaptype) < 254:
+			if eaptype.isdigit() and 3 < int(eaptype) < 255:
 				check_range.append(int(eaptype))
 			else:
 				print ERROR + 'Invalid EAP Type: ' + eaptype
 		if len(check_range) == 0:
-			print ERROR + 'No Usable EAP Types (4-253), Now Exiting...'
+			print ERROR + 'No Usable EAP Types (4-254), Now Exiting...'
 			return 5
 	else:
 		check_range = EAP_TYPES.keys()

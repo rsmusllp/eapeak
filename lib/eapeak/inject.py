@@ -293,6 +293,7 @@ class WirelessStateMachine:
 		}
 		"""
 		# Dot11 Probe Request
+		"""
 		if self.connected == True:
 			return -1
 		sendp(	RadioTap()/
@@ -306,7 +307,7 @@ class WirelessStateMachine:
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket == None:
 			return 1
-
+		"""
 		
 		# Dot11 Authentication Request
 		sendp(	RadioTap()/
@@ -390,7 +391,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 	This is to keep the EAP functionality seperate so the core State-
 	Machine can be repurposed for other projects.
 	"""
-	def check_eap_type(self, eaptype, outer_identity = 'user'):
+	def check_eap_type(self, eaptype, outer_identity = 'user', eapol_start = False):
 		"""
 		Check that an eaptype is supported.
 		errDict = {
@@ -400,7 +401,23 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 			3:"identity rejected"
 		}
 		"""
-		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, identity=outer_identity)
+		eapid = randint(50, 220)
+		if eapol_start:
+			eapol_start_request = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=1)
+			self.sequence += 1
+			for i in range(0, 3):
+				sendp(eapol_start_request, iface=self.interface, verbose=False)
+				sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+				if not self.lastpacket == None:
+					if self.lastpacket.haslayer('EAP'):
+						fields = self.lastpacket.getlayer(EAP).fields
+						if 'type' in fields and fields['type'] == 1 and fields['code'] == 1:
+							i = 0
+							break
+			if i == 2:
+				return 2
+
+		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, id=eapid, identity=outer_identity)
 		self.sequence += 1
 		eap_legacy_nak = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0, len=6)/EAP(code=2, type=3, id=1, eap_types=[ eaptype ])
 		self.sequence += 1
@@ -415,8 +432,10 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 						return 3
 					if 'type' in fields and fields['type'] == eaptype:
 						return 0
+					i = 0
 					break
-		# if i == 1: return 2 # this line makes it slower and less accurate
+		if i == 2:
+			return 2
 		
 		for i in range(0, 3):
 			sendp(eap_legacy_nak, iface=self.interface, verbose=False)
