@@ -95,7 +95,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity):
 					sleep(ERROR_SLEEP_TIME)
 					tries += 1
 					continue # try same
-				errCode = statemachine.check_eap_type(eaptype, outer_identity)
+				errCode = statemachine.check_eap_type(eaptype, outer_identity, True)
 				if errCode == 0:	# supported
 					sys.stdout.write((' ' * len(status_str)) + '\r')
 					sys.stdout.flush()

@@ -24,7 +24,7 @@
 
 """
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 from binascii import hexlify, unhexlify
 from socket import error as socketError
@@ -292,22 +292,6 @@ class WirelessStateMachine:
 			3:"Failed To Get Association Response"
 		}
 		"""
-		# Dot11 Probe Request
-		"""
-		if self.connected == True:
-			return -1
-		sendp(	RadioTap()/
-				Dot11(addr1='ff:ff:ff:ff:ff:ff', addr2=self.source_mac, addr3='ff:ff:ff:ff:ff:ff', type=0, subtype=4, ID=0)/
-				Dot11ProbeReq()/
-				Dot11Elt(ID=0, info='')/
-				Dot11Elt(ID=1, info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
-				Dot11Elt(ID=50, info='\x30\x48\x60\x6c'),
-				iface=self.interface, verbose=False)
-		self.sequence += 1
-		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None:
-			return 1
-		"""
 		
 		# Dot11 Authentication Request
 		sendp(	RadioTap()/
@@ -316,7 +300,7 @@ class WirelessStateMachine:
 				iface=self.interface, verbose=False)
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None:
+		if self.lastpacket == None or self.lastpacket.getlayer('Dot11Auth').status != 0:
 			return 2
 		
 		# Dot11 Association Request
@@ -325,9 +309,7 @@ class WirelessStateMachine:
 				Dot11AssoReq(cap='ESS+privacy+short-preamble+short-slot', listen_interval=10)/
 				Dot11Elt(ID=0, info=essid)/
 				Dot11Elt(ID=1, info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
-				Dot11Elt(ID=50, info='\x30\x48\x60\x6c')/
-				Dot11Elt(ID=221, info='\x00\x50\xf2\x01\x01\x00\x00\x50\xf2\x02\x01\x00\x00\x50\xf2\x02\x01\x00\x00\x50\xf2\x01\x3c\x00')/
-				Dot11Elt(ID=221, info='\x00\x50\xf2\x02\x00\x01\x00'),
+				Dot11Elt(ID=50, info='\x30\x48\x60\x6c'),
 				iface=self.interface, verbose=False)
 
 		self.sequence += 1
@@ -401,7 +383,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 			3:"identity rejected"
 		}
 		"""
-		eapid = randint(50, 220)
+		eapid = randint(1, 254)
 		if eapol_start:
 			eapol_start_request = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=1)
 			self.sequence += 1
@@ -413,13 +395,14 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 						fields = self.lastpacket.getlayer(EAP).fields
 						if 'type' in fields and fields['type'] == 1 and fields['code'] == 1:
 							i = 0
+							eapid = fields['id']
 							break
 			if i == 2:
 				return 2
 
 		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, id=eapid, identity=outer_identity)
 		self.sequence += 1
-		eap_legacy_nak = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0, len=6)/EAP(code=2, type=3, id=1, eap_types=[ eaptype ])
+		eap_legacy_nak = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0, len=6)/EAP(code=2, type=3, id=eapid + 1, eap_types=[ eaptype ])
 		self.sequence += 1
 		
 		for i in range(0, 3):
