@@ -5,8 +5,8 @@ EAPScan - Actively Enumerate 802.1x Wireless Networks.
 
 .SH SYNOPSIS
 eapscan [-h] -e ESSID -b BSSID -i IFACE [-v] [-c CHANNEL] [--all]
-        [--identity IDENTITY] [--types EAP_TYPES [EAP_TYPES ...]]
-        [--xml]
+        [--check-wps] [--identity IDENTITY]
+        [--types EAP_TYPES [EAP_TYPES ...]] [--xml]
 
 .SH DESCRIPTION
 EAPScan is an open source tool, distributed with EAPeak that is designed
@@ -28,8 +28,8 @@ authentication.
 
 .SH OPTIONS 
 usage: eapscan [-h] -e ESSID -b BSSID -i IFACE [-v] [-c CHANNEL] [--all]
-               [--identity IDENTITY] [--types EAP_TYPES [EAP_TYPES ...]]
-               [--xml]
+               [--check-wps] [--identity IDENTITY]
+               [--types EAP_TYPES [EAP_TYPES ...]] [--xml]
 
 EAPScan: Actively Enumerate 802.1x Wireless Networks
 
@@ -44,7 +44,8 @@ optional arguments:
   -v, --version         show program's version number and exit
   -c CHANNEL, --channel CHANNEL
                         target channel
-  --all                 scan all EAP types (4-253)
+  --all                 scan all EAP types (4-254)
+  --check-wps           check if WPS is enabled
   --identity IDENTITY   EAP outer identity string
   --types EAP_TYPES [EAP_TYPES ...]
                         list of specific EAP types to try
