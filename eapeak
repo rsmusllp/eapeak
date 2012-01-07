@@ -104,7 +104,9 @@ def main():
 		parser.add_argument('-c', '--curses', dest = 'use_curses', action = 'store_true', default = False, help = 'use the BETA curses interface when capturing live')
 	parser.add_argument('-i', '--iface', dest = 'interface', action = 'store', help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
-	parser.add_argument('--no-xml', dest = 'dont_save_xml', action = 'store_true', default = False, help = 'dont store xml data when capturing live')
+	save_xml_parser = parser.add_mutually_exclusive_group()
+	save_xml_parser.add_argument('--no-xml', dest = 'dont_save_xml', action = 'store_true', default = False, help = 'don\'t export data to xml (default: save when capturing)')
+	save_xml_parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml (default: save when capturing)')
 
 	cert_opts = parser.add_argument_group('certificate export options')
 	cert_opts.add_argument('--export-x509', dest = 'export_x509', action = 'store_true', default = False, help = 'start EAPeak certificate export wizard')
@@ -122,7 +124,8 @@ def main():
 	if not capture_live and not storedFiles:
 		parser.print_help()
 		return 0
-	save_to_xml = not results.dont_save_xml
+		
+	save_to_xml = ((not results.dont_save_xml & results.capture_live) | results.save_xml)
 	export_x509 = results.export_x509
 	export_x509_format = results.export_x509_format
 	del results, parser, cert_opts
@@ -205,7 +208,6 @@ def main():
 			eapeakParser.cleanupCurses()
 		print '\nStopping Live Capture...'
 		print ''
-	del save_to_xml
 	
 	if not len(eapeakParser.KnownNetworks):
 		print 'Found No Usable Information\nTry Again With A Larger Capture'
@@ -277,6 +279,8 @@ def main():
 		print 'Now Exiting...'
 		return 0
 
+	if save_to_xml:
+		eapeakParser.exportXML()
 	intro0 = 'EAPeak Summary of Wireless Networks'
 	intro1 = 'Found ' + str(len(eapeakParser.KnownNetworks)) + ' Network(s)'
 	intro = '*' * len(intro0) + '****\n'
