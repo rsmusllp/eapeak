@@ -300,7 +300,7 @@ class WirelessStateMachine:
 				iface=self.interface, verbose=False)
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None or self.lastpacket.getlayer('Dot11Auth').status != 0:
+		if self.lastpacket == None or not self.lastpacket.haslayer('Dot11Auth') or self.lastpacket.getlayer('Dot11Auth').status != 0:
 			return 2
 		
 		# Dot11 Association Request
