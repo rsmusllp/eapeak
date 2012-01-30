@@ -51,7 +51,7 @@ import scapy.packet
 import scapy.layers.all
 from scapy.sendrecv import sniff
 
-from eapeak.common import getBSSID, getSource, getDestination
+from eapeak.common import getBSSID, getSource, getDestination, EXPANDED_EAP_VENDOR_IDS
 import eapeak.networks 
 import eapeak.clients
 
@@ -73,7 +73,7 @@ USER_MARKER = '=> '
 USER_MARKER_OFFSET = 8
 SSID_MAX_LENGTH = 32
 from scapy.layers.l2 import eap_types as EAP_TYPES
-from scapy.layers.l2 import EAP, EAP_TLS, LEAP, EAP_TTLS, PEAP, EAP_Fast
+from scapy.layers.l2 import EAP, EAP_TLS, LEAP, EAP_TTLS, PEAP, EAP_Fast, EAP_Expanded
 from scapy.layers.ssl import TLSv1RecordLayer, TLSv1ClientHello, TLSv1ServerHello, TLSv1ServerHelloDone, TLSv1KeyExchange, TLSv1Certificate
 EAP_TYPES[0] = 'NONE'
 	
@@ -95,6 +95,16 @@ def mergeWirelessNetworks(source, destination):
 		destination.addCertificate(cert)
 	return destination
 
+def parseWPSData(wpsdata):
+	"""
+	Take raw WPS data string and return a dictionary of types and values
+	"""
+	data = {}
+	while wpsdata:
+		type = unpack('>H', wpsdata[:2])[0]
+		length = unpack('>H', wpsdata[2:4])[0]
+		value = wpsdata[4:(4 + length)]
+		
 class EapeakParsingEngine:
 	"""
 	This is the main parsing engine that manages all of the networks.
@@ -232,6 +242,11 @@ class EapeakParsingEngine:
 					for eaptype in eaptypes.text.strip().split(','):
 						if eaptype.isdigit():
 							newNetwork.addEapType(int(eaptype))
+				expandedVendorIDs = network.find('SSID').find('expanded-vendor-ids')
+				if ElementTree.iselement(expandedVendorIDs):
+					for vendorid in expandedVendorIDs.text.strip().split(','):
+						if vendorid.isdigit():
+							newNetwork.addExpandedVendorID(int(vendorid))
 							
 				for client in network.findall('wireless-client'):
 					bssid = client.find('client-bssid')
@@ -393,7 +408,8 @@ class EapeakParsingEngine:
 					for eap in fields['eap_types']:
 						client.addEapType(eap)
 					del eap
-					
+			if eaptype == 254 and packet.haslayer(EAP_Expanded):
+				network.addExpandedVendorID(packet.getlayer(EAP_Expanded).vendor_id)
 			if from_AP:													# from here on we look for things based on whether it's to or from the AP
 				if packet.haslayer('LEAP'):
 					leap_fields = packet.getlayer(LEAP).fields

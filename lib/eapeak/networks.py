@@ -28,6 +28,7 @@ from scapy.layers.l2 import eap_types as EAP_TYPES
 from xml.sax.saxutils import escape as XMLEscape
 from base64 import standard_b64encode as b64encode
 from M2Crypto import X509
+from eapeak.common import EXPANDED_EAP_VENDOR_IDS
 EAP_TYPES[0] = 'NONE'
 
 
@@ -45,6 +46,7 @@ class WirelessNetwork:
 		self.bssids = []
 		self.clients = {}	# indexed by client MAC
 		self.eapTypes = []
+		self.expandedVendorIDs = []
 		self.ssid = ssid
 		self.x509certs = []	# list of certificates
 		
@@ -84,6 +86,13 @@ class WirelessNetwork:
 		if eapType not in self.eapTypes and eapType not in [1, 3]:
 			self.eapTypes.append(eapType)
 
+	def addExpandedVendorID(self, vendorID):
+		"""
+		Add a vendor id from an Expanded EAP frame.
+		"""
+		if vendorID not in self.expandedVendorIDs:
+			self.expandedVendorIDs.append(vendorID)
+
 	def addClient(self, clientobj):
 		"""
 		Add an associated Client Object to the internal list.
@@ -116,7 +125,7 @@ class WirelessNetwork:
 		"""
 		output = 'SSID: ' + self.ssid + '\n'
 		if self.bssids:
-			output += 'BSSIDs:\n\t' + "\n\t".join(self.bssids) + '\n'
+			output += '\tBSSIDs:\n\t\t' + "\n\t\t".join(self.bssids) + '\n'
 		if self.eapTypes:
 			output += '\tEAP Types:\n'
 			for eapType in self.eapTypes:
@@ -124,6 +133,13 @@ class WirelessNetwork:
 					output += '\t\t' + EAP_TYPES[eapType] + '\n'
 				else:
 					output += '\t\tEAP Type: ' + str(eapType) + '\n'
+		if self.expandedVendorIDs:
+			output += '\tExpanded EAP Vendor IDs:\n'
+			for vendorID in self.expandedVendorIDs:
+				if vendorID in EXPANDED_EAP_VENDOR_IDS.keys():
+					output += '\t\t' + EXPANDED_EAP_VENDOR_IDS[vendorID] + '\n'
+				else:
+					output += '\t\tVendor ID: ' + str(vendorID) + '\n'
 		if self.clients:
 			output += '\tClient Data:\n'
 			i = 1
@@ -174,6 +190,8 @@ class WirelessNetwork:
 		essid.text = XMLEscape(self.ssid)
 		if self.eapTypes:
 			ElementTree.SubElement(tmp, 'eap-types').text = ",".join([str(i) for i in self.eapTypes])
+		if self.expandedVendorIDs:
+			ElementTree.SubElement(tmp, 'expanded-vendor-ids').text = ",".join([str(i) for i in self.expandedVendorIDs])
 
 		for client in self.clients.values():
 			root.append(client.getXML())

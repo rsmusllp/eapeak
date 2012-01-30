@@ -44,6 +44,7 @@ SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
 DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
 FreqToChanMap = { 	2412:1, 2417:2, 2422:3, 2427:4, 2432:5, 2437:6, 2442:7,
 					2447:8, 2452:9, 2457:10, 2462:11, 2467:12, 2472:13, 2484:14	}
+EXPANDED_EAP_VENDOR_IDS = { 0x137:'Microsoft', 0x372a:'WPS' }
 
 def getBSSID(packet):
 	"""
