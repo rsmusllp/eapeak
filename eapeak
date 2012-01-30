@@ -49,8 +49,10 @@ __authors__ = [ 'Spencer McIntyre', 'SecureState R&D Team' ]
 import sys
 try:
 	from scapy.layers.l2 import eap_types as EAP_TYPES
+	from scapy.layers.l2 import WPS
 except ImportError:
 	print 'Error: Missing Scapy Libraries, Please Install Scapy From The Community Repository'
+	print 'Error: Version Must Be >= 1538:d80170e42ced'
 	# http://hg.secdev.org/scapy-com # needs community repository because of the extra EAP layers I added.
 	print 'Error: Now Exiting...'
 	sys.exit(1)

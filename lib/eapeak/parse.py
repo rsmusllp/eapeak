@@ -59,7 +59,7 @@ import eapeak.clients
 UNKNOWN_SSID_NAME = 'UNKNOWN_SSID'
 XML_FILE_NAME = 'eapeak.xml'
 SSID_SEARCH_RECURSION = 5
-CURSES_LINE_BREAK = [0, '']
+CURSES_LINE_BREAK = (0, '')
 CURSES_REFRESH_FREQUENCY = 0.10
 CURSES_LOWER_REFRESH_FREQUENCY = 5	# frequency of CURSES_REFRESH_FREQUENCY, also used for calls to exportXML
 CURSES_MIN_X = 99					# minimum screen size
@@ -322,7 +322,7 @@ class EapeakParsingEngine:
 						if vendorid.isdigit():
 							newNetwork.addExpandedVendorID(int(vendorid))
 				wpsXMLData = network.find('wps-data')
-				if wpsXMLData:
+				if ElementTree.iselement(wpsXMLData):
 					wpsData = wpsDataHolder()
 					for elem in wpsXMLData:
 						key = elem.tag.replace('-', ' ')
@@ -366,7 +366,7 @@ class EapeakParsingEngine:
 							mschap.get('identity')
 						)
 					wpsXMLData = client.find('wps-data')
-					if wpsXMLData:
+					if ElementTree.iselement(wpsXMLData):
 						wpsData = wpsDataHolder()
 						for elem in wpsXMLData:
 							key = elem.tag.replace('-', ' ')
@@ -776,17 +776,18 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			else:
 				self.curses_lower_refresh_counter += 1
 				continue
-				
+			
 			messages = []
 			ssids = self.KnownNetworks.keys()
 			if self.curses_detailed and self.curses_detailed in self.KnownNetworks:
 				network = self.KnownNetworks[ self.curses_detailed ]
-				messages.append([TAB_LENGTH, 'SSID: ' + network.ssid])
+				messages.append((TAB_LENGTH, 'SSID: ' + network.ssid))
 				messages.append(CURSES_LINE_BREAK)
 				
-				messages.append([TAB_LENGTH, 'BSSIDs:'])
+				messages.append((TAB_LENGTH, 'BSSIDs:'))
 				for bssid in network.bssids:
-					messages.append([TAB_DEPTH_2, bssid])
+					messages.append((TAB_DEPTH_2, bssid))
+				messages.append(CURSES_LINE_BREAK)
 				tmpEapTypes = []
 				if network.eapTypes:
 					for eType in network.eapTypes:
@@ -794,19 +795,38 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 							tmpEapTypes.append(EAP_TYPES[eType])
 						else:
 							tmpEapTypes.append(str(eType))
-				messages.append(CURSES_LINE_BREAK)
 				if tmpEapTypes:
-					messages.append([TAB_LENGTH, 'EAP Types: ' + ", ".join(tmpEapTypes)])
+					messages.append((TAB_LENGTH, 'EAP Types: ' + ", ".join(tmpEapTypes)))
 				else:
-					messages.append([TAB_LENGTH, 'EAP Types: [ NONE ]'])
-				del tmpEapTypes
+					messages.append((TAB_LENGTH, 'EAP Types: [ NONE ]'))
+				tmpVendorIDs = []
+				if network.expandedVendorIDs:
+					for vType in network.expandedVendorIDs:
+						if vType in EXPANDED_EAP_VENDOR_IDS:
+							tmpVendorIDs.append(EXPANDED_EAP_VENDOR_IDS[vType])
+						else:
+							tmpVendorIDs.append(str(vType))
+				if tmpVendorIDs:
+					messages.append((TAB_LENGTH, 'Expanded Vendor IDs: ' + ", ".join(tmpVendorIDs)))
+				del tmpEapTypes, tmpVendorIDs
 				messages.append(CURSES_LINE_BREAK)
+				if network.wpsData:
+					the_cheese_stands_alone = True
+					for piece in ['Manufacturer', 'Model Name', 'Model Number', 'Device Name']:
+						if network.wpsData.has_key(piece):
+							if the_cheese_stands_alone:
+								messages.append((TAB_LENGTH, 'WPS Information:'))
+								the_cheese_stands_alone = False
+							messages.append((TAB_DEPTH_2, piece + ': ' + network.wpsData[piece]))
+					if not the_cheese_stands_alone:
+						messages.append(CURSES_LINE_BREAK)
+					del the_cheese_stands_alone, piece
 				if network.clients:
-					messages.append([TAB_LENGTH, 'Clients:         '])
+					messages.append((TAB_LENGTH, 'Clients:         '))
 					clients = network.clients.values()
 					for i in range(0, len(clients)):
 						client = clients[i]
-						messages.append([TAB_DEPTH_2, 'Client ' + str(i + 1) + ') MAC: ' + client.mac])
+						messages.append((TAB_DEPTH_2, 'Client ' + str(i + 1) + ') MAC: ' + client.mac))
 						if client.eapTypes:
 							tmpEapTypes = []
 							for y in client.eapTypes:
@@ -814,48 +834,57 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 									tmpEapTypes.append(EAP_TYPES[y])
 								else:
 									tmpEapTypes.append(str(y))
-							messages.append([TAB_DEPTH_2, 'EAP Types: ' + ", ".join(tmpEapTypes)])
+							messages.append((TAB_DEPTH_2, 'EAP Types: ' + ", ".join(tmpEapTypes)))
 							del tmpEapTypes
 						else:
-							messages.append([TAB_DEPTH_2, 'EAP Types: [ UNKNOWN ]'])
+							messages.append((TAB_DEPTH_2, 'EAP Types: [ UNKNOWN ]'))
 						if client.identities:
-							messages.append([TAB_DEPTH_2, 'Identities:'])
+							messages.append((TAB_DEPTH_2, 'Identities:'))
 						for ident, eap in client.identities.items():
-							messages.append([TAB_DEPTH_3, '(' + EAP_TYPES[eap] + ') ' + ident])
+							messages.append((TAB_DEPTH_3, '(' + EAP_TYPES[eap] + ') ' + ident))
 						if client.mschap:
 							first = True
 							for value in client.mschap:
 								if not 'r' in value: continue
 								if first:
-									messages.append([TAB_DEPTH_2, 'MSChap:'])
+									messages.append((TAB_DEPTH_2, 'MSChap:'))
 									first = False
-								messages.append([TAB_DEPTH_3, 'EAP Type: ' + EAP_TYPES[value['t']] + ', Identity: ' + value['i']])
-								messages.append([TAB_DEPTH_3, 'C: ' + value['c']])
-								messages.append([TAB_DEPTH_3, 'R: ' + value['r']])
+								messages.append((TAB_DEPTH_3, 'EAP Type: ' + EAP_TYPES[value['t']] + ', Identity: ' + value['i']))
+								messages.append((TAB_DEPTH_3, 'C: ' + value['c']))
+								messages.append((TAB_DEPTH_3, 'R: ' + value['r']))
 							del first
+						if client.wpsData:
+							the_cheese_stands_alone = True
+							for piece in ['Manufacturer', 'Model Name', 'Model Number', 'Device Name']:
+								if client.wpsData.has_key(piece):
+									if the_cheese_stands_alone:
+										messages.append((TAB_DEPTH_2, 'WPS Information:'))
+										the_cheese_stands_alone = False
+									messages.append((TAB_DEPTH_3, piece + ': ' + client.wpsData[piece]))
+							del the_cheese_stands_alone, piece
 						messages.append(CURSES_LINE_BREAK)
 					messages.pop()	# trash the trailing line break
 					del clients
 				else:
-					messages.append([TAB_LENGTH, 'Clients: [ NONE ]'])
+					messages.append((TAB_LENGTH, 'Clients: [ NONE ]'))
 				if network.x509certs:
 					messages.append(CURSES_LINE_BREAK)
-					messages.append([TAB_LENGTH, 'Certificates:'])
+					messages.append((TAB_LENGTH, 'Certificates:'))
 					i = 1
 					for cert in network.x509certs:
-						messages.append([TAB_DEPTH_2, 'Certificate ' + str(i) + ') Expiration Date: ' + str(cert.get_not_after())])
+						messages.append((TAB_DEPTH_2, 'Certificate ' + str(i) + ') Expiration Date: ' + str(cert.get_not_after())))
 						data = cert.get_issuer()
-						messages.append([TAB_DEPTH_2, 'Issuer:'])
+						messages.append((TAB_DEPTH_2, 'Issuer:'))
 						for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
-							messages.append([TAB_DEPTH_3, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()])
+							messages.append((TAB_DEPTH_3, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()))
 						for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
-							messages.append([TAB_DEPTH_3, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()])
+							messages.append((TAB_DEPTH_3, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()))
 						data = cert.get_subject()
-						messages.append([TAB_DEPTH_2, 'Subject:'])
+						messages.append((TAB_DEPTH_2, 'Subject:'))
 						for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
-							messages.append([TAB_DEPTH_3, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()])
+							messages.append((TAB_DEPTH_3, 'CN: ' + X509_Name_Entry_inst.get_data().as_text()))
 						for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
-							messages.append([TAB_DEPTH_3, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()])
+							messages.append((TAB_DEPTH_3, 'OU: ' + X509_Name_Entry_inst.get_data().as_text()))
 						del data
 						i += 1
 						messages.append(CURSES_LINE_BREAK)
@@ -871,14 +900,14 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					messages.pop(0)
 				self.screen.border(0)
 			else:
-				messages.append([TAB_DEPTH_2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 2) + 'EAP Types:'])
+				messages.append((TAB_DEPTH_2, 'SSID:' + ' ' * (SSID_MAX_LENGTH + 2) + 'EAP Types:'))
 				if self.curses_row_offset:
-					messages.append([TAB_DEPTH_2, '[ MORE ]'])
+					messages.append((TAB_DEPTH_2, '[ MORE ]'))
 				else:
-					messages.append([TAB_DEPTH_2, '        '])
+					messages.append((TAB_DEPTH_2, '        '))
 				for i in range(self.curses_row_offset, len(ssids)):
 					if len(messages) > self.curses_max_rows - 8:
-						messages.append([TAB_DEPTH_2, '[ MORE ]'])
+						messages.append((TAB_DEPTH_2, '[ MORE ]'))
 						break
 					network = self.KnownNetworks[ssids[i]]
 					tmpEapTypes = []
@@ -889,11 +918,11 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 							else:
 								tmpEapTypes.append(str(eType))
 					if i < 9:
-						messages.append([TAB_DEPTH_2, str(i + 1) + ')  ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
+						messages.append((TAB_DEPTH_2, str(i + 1) + ')  ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)))
 					else:
-						messages.append([TAB_DEPTH_2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)])
+						messages.append((TAB_DEPTH_2, str(i + 1) + ') ' + network.ssid + ' ' * (SSID_MAX_LENGTH - len(network.ssid) + 3) + ", ".join(tmpEapTypes)))
 				if not len(messages) > self.curses_max_rows - 2:
-					messages.append([TAB_DEPTH_2, '        '])
+					messages.append((TAB_DEPTH_2, '        '))
 				self.screen.border(0)
 				self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 			line = 7
