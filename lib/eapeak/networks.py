@@ -49,6 +49,7 @@ class WirelessNetwork:
 		self.expandedVendorIDs = []
 		self.ssid = ssid
 		self.x509certs = []	# list of certificates
+		self.wpsData = None												# this will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
 		
 		if bssid:
 			self.bssids.append(bssid)
@@ -140,6 +141,14 @@ class WirelessNetwork:
 					output += '\t\t' + EXPANDED_EAP_VENDOR_IDS[vendorID] + '\n'
 				else:
 					output += '\t\tVendor ID: ' + str(vendorID) + '\n'
+		if self.wpsData:
+			the_cheese_stands_alone = True
+			for piece in ['Manufacturer', 'Model Name', 'Model Number', 'Device Name']:
+				if self.wpsData.has_key(piece):
+					if the_cheese_stands_alone:
+						output += '\tWPS Information:\n'
+						the_cheese_stands_alone = False
+					output += '\t\t' + piece + ': ' + self.wpsData[piece] + '\n'
 		if self.clients:
 			output += '\tClient Data:\n'
 			i = 1
@@ -192,12 +201,21 @@ class WirelessNetwork:
 			ElementTree.SubElement(tmp, 'eap-types').text = ",".join([str(i) for i in self.eapTypes])
 		if self.expandedVendorIDs:
 			ElementTree.SubElement(tmp, 'expanded-vendor-ids').text = ",".join([str(i) for i in self.expandedVendorIDs])
-
+		if self.wpsData:
+			wps = ElementTree.SubElement(root, 'wps-data')
+			for info in ['manufacturer', 'model name', 'model number', 'device name']:
+				if self.wpsData.has_key(info):
+					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
+					tmp.text = self.wpsData[info]
+			for info in ['uuid', 'registrar nonce', 'enrollee nonce']:	# values that should be base64 encoded
+				if self.wpsData.has_key(info):
+					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
+					tmp.set('encoding', 'base64')
+					tmp.text = b64encode(self.wpsData[info])
 		for client in self.clients.values():
 			root.append(client.getXML())
 		for cert in self.x509certs:
 			tmp = ElementTree.SubElement(root, 'certificate')
 			tmp.text = b64encode(cert.as_der())
 			tmp.set('encoding', 'DER')
-			
 		return root

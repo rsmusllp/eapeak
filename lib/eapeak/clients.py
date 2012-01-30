@@ -26,6 +26,7 @@
 
 from scapy.layers.l2 import eap_types as EAP_TYPES
 from binascii import hexlify
+from base64 import standard_b64encode as b64encode
 from xml.sax.saxutils import escape as XMLEscape
 EAP_TYPES[0] = 'NONE'
 
@@ -45,6 +46,7 @@ class WirelessClient:
 		self.eapTypes = []
 		self.datastore = {}												# I love metasploit
 		self.mschap = []												# holds respObj dictionaries, keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
+		self.wpsData = None												# this will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
 	
 	def addEapType(self, eaptype):
 		"""
@@ -126,6 +128,16 @@ class WirelessClient:
 					output += ', Identity: ' + respObj['i']
 				output += '\n'
 				output += ('\t' * tabs) + '\t\tC: ' + respObj['c'] + '\n' + ('\t' * tabs) + '\t\tR: ' + respObj['r'] + '\n'
+		if self.wpsData:
+			the_cheese_stands_alone = True
+			for piece in ['Manufacturer', 'Model Name', 'Model Number', 'Device Name']:
+				if self.wpsData.has_key(piece):
+					if the_cheese_stands_alone:
+						output += ('\t' * tabs) + 'WPS Information:\n'
+						the_cheese_stands_alone = False
+					output += ('\t' * tabs) + '\t' + piece + ': ' + self.wpsData[piece] + '\n'
+			if not the_cheese_stands_alone:
+				output = output[:-1]
 		return output
 
 	def getXML(self):
@@ -150,4 +162,16 @@ class WirelessClient:
 			tmp.set('identity', XMLEscape(respObj['i']))
 			ElementTree.SubElement(tmp, 'challenge').text = respObj['c']
 			ElementTree.SubElement(tmp, 'response').text = respObj['r']
+		
+		if self.wpsData:
+			wps = ElementTree.SubElement(root, 'wps-data')
+			for info in ['manufacturer', 'model name', 'model number', 'device name']:
+				if self.wpsData.has_key(info):
+					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
+					tmp.text = self.wpsData[info]
+			for info in ['uuid', 'registrar nonce', 'enrollee nonce']:	# values that should be base64 encoded
+				if self.wpsData.has_key(info):
+					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
+					tmp.set('encoding', 'base64')
+					tmp.text = b64encode(self.wpsData[info])
 		return root

@@ -95,15 +95,89 @@ def mergeWirelessNetworks(source, destination):
 		destination.addCertificate(cert)
 	return destination
 
+class wpsDataHolder(dict):
+	"""
+	This wraps a dictionary and a few key methods to allow types to be
+	retreived from either their numerical cylon value or thier alphabetical
+	human value
+	
+	Keys are not case sensitive because I like it that way.
+	"""
+	__h_to_c__ = {
+		'authentication type flags':0x1004,
+		'authenticator':0x1005,
+		'configuration error':0x1009,
+		'encryption type flags':0x1010,
+		'device name':0x1011, 
+		'encrypted settings':0x1018,
+		'enrollee nonce':0x101a,
+		'manufacturer':0x1021,
+		'message type':0x1022,
+		'model name':0x1023,
+		'model number':0x1024,
+		'os version':0x102d,
+		'registrar nonce':0x1039,
+		'uuid':0x1048,
+		'version':0x104a,
+	}
+	
+	def __getitem__(self, index):
+		if isinstance(index, str):
+			if index.lower() in self.__h_to_c__:
+				index = self.__h_to_c__[index.lower()]
+			else:
+				raise KeyError(index)
+		return dict.__getitem__(self, index)
+
+	def __setitem__(self, name, value):
+		if isinstance(name, str):
+			if name.lower() in self.__h_to_c__:
+				name = self.__h_to_c__[name.lower()]
+			else:
+				raise KeyError(name)
+		return dict.__setitem__(self, name, value)
+	
+	def get(self, item):
+		if isinstance(item, str):
+			if item.lower() in self.__h_to_c__:
+				item = self.__h_to_c__[item.lower()]
+			else:
+				return None
+		return dict.get(self, item)
+
+	def has_key(self, item):
+		if isinstance(item, str):
+			if item.lower() in self.__h_to_c__:
+				item = self.__h_to_c__[item.lower()]
+			else:
+				return False
+		return dict.has_key(self, item)
+	
+	def keys(self):
+		keys = dict.keys(self)
+		new_keys = []
+		for key, value in self.__h_to_c__.items():
+			if value in keys:
+				new_keys.append(key)
+		keys.extend(new_keys)
+		return keys
+
 def parseWPSData(wpsdata):
 	"""
 	Take raw WPS data string and return a dictionary of types and values
 	"""
-	data = {}
+	data = wpsDataHolder()
 	while wpsdata:
+		if len(wpsdata) < 4:
+			raise Exception('invalid/corrupted WPS data')
 		type = unpack('>H', wpsdata[:2])[0]
 		length = unpack('>H', wpsdata[2:4])[0]
+		if len(wpsdata) < (length + 4):
+			raise Exception('invalid/corrupted WPS data')
 		value = wpsdata[4:(4 + length)]
+		wpsdata = wpsdata[(4 + length):]
+		data[type] = value
+	return data
 		
 class EapeakParsingEngine:
 	"""
@@ -247,6 +321,21 @@ class EapeakParsingEngine:
 					for vendorid in expandedVendorIDs.text.strip().split(','):
 						if vendorid.isdigit():
 							newNetwork.addExpandedVendorID(int(vendorid))
+				wpsXMLData = network.find('wps-data')
+				if wpsXMLData:
+					wpsData = wpsDataHolder()
+					for elem in wpsXMLData:
+						key = elem.tag.replace('-', ' ')
+						value = elem.text.strip()
+						encoding = elem.get('encoding')
+						if encoding == 'hex':
+							wpsData[key] = unhexlify(value)
+						elif encoding == 'base64':
+							wpsData[key] = b64decode(value)
+						else:
+							wpsData[key] = value
+					if len(wpsData):
+						newNetwork.wpsData = wpsData
 							
 				for client in network.findall('wireless-client'):
 					bssid = client.find('client-bssid')
@@ -276,6 +365,21 @@ class EapeakParsingEngine:
 							unhexlify(mschap.find('response').text.strip().replace(':', '')),
 							mschap.get('identity')
 						)
+					wpsXMLData = client.find('wps-data')
+					if wpsXMLData:
+						wpsData = wpsDataHolder()
+						for elem in wpsXMLData:
+							key = elem.tag.replace('-', ' ')
+							value = elem.text.strip()
+							encoding = elem.get('encoding')
+							if encoding == 'hex':
+								wpsData[key] = unhexlify(value)
+							elif encoding == 'base64':
+								wpsData[key] = b64decode(value)
+							else:
+								wpsData[key] = value
+						if len(wpsData):
+							newClient.wpsData = wpsData
 					newNetwork.addClient(newClient)
 				for cert in network.findall('certificate'):
 					if cert.get('encoding') == 'DER':
@@ -431,6 +535,15 @@ class EapeakParsingEngine:
 					if eap_layer.haslayer('TLSv1Certificate'):			# at this point, if possible, we should have a fully assembled packet
 						cert_layer = eap_layer.getlayer(TLSv1Certificate)
 					del eap_layer, conn_string, frag_flag, len_flag
+				elif packet.haslayer('EAP_Expanded') and packet.getlayer('EAP_Expanded').vendor_type == 1 and packet.haslayer('WPS') and packet.getlayer('WPS').opcode == 4:
+					try:
+						wpsData = parseWPSData(packet.getlayer('WPS').data)
+						if network.wpsData == None:
+							network.wpsData = wpsData
+						else:
+							network.wpsData.update(wpsData)
+					except:
+						pass	
 
 			else:
 				if eaptype == 1 and 'identity' in fields:
@@ -444,6 +557,15 @@ class EapeakParsingEngine:
 					if 'data' in leap_fields and len(leap_fields['data']) == 24:
 						client.addMSChapInfo(17, response = leap_fields['data'], identity = identity)
 					del leap_fields, identity
+				elif packet.haslayer('EAP_Expanded') and packet.getlayer('EAP_Expanded').vendor_type == 1 and packet.haslayer('WPS') and packet.getlayer('WPS').opcode == 4:
+					try:
+						wpsData = parseWPSData(packet.getlayer('WPS').data)
+						if client.wpsData == None:
+							client.wpsData = wpsData
+						else:
+							client.wpsData.update(wpsData)
+					except:
+						pass											# data is corrupted
 			network.addClient(client)
 			if not cert_layer:
 				shouldStop = True
