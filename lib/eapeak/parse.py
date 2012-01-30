@@ -26,7 +26,7 @@
 
 # TODO: remove clients with an eap identity of eapscan because they're probably us.
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 import os
 import sys
