@@ -162,7 +162,7 @@ class wpsDataHolder(dict):
 		keys.extend(new_keys)
 		return keys
 
-def parseWPSData(wpsdata):
+def parseWPSData(wpsdata, trimStrings = True):
 	"""
 	Take raw WPS data string and return a dictionary of types and values
 	"""
@@ -176,6 +176,10 @@ def parseWPSData(wpsdata):
 			raise Exception('invalid/corrupted WPS data')
 		value = wpsdata[4:(4 + length)]
 		wpsdata = wpsdata[(4 + length):]
+		if trimStrings and type in [0x1011, 0x1021, 0x1023, 0x1024]:
+			value = value.replace('\x00', '')
+			if not len(value):
+				continue
 		data[type] = value
 	return data
 		

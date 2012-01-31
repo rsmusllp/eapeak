@@ -136,9 +136,7 @@ class WirelessClient:
 						output += ('\t' * tabs) + 'WPS Information:\n'
 						the_cheese_stands_alone = False
 					output += ('\t' * tabs) + '\t' + piece + ': ' + self.wpsData[piece] + '\n'
-			if not the_cheese_stands_alone:
-				output = output[:-1]
-		return output
+		return output.rstrip()
 
 	def getXML(self):
 		"""
