@@ -41,7 +41,7 @@ from eapeak.parse import UNKNOWN_SSID_NAME
 from ipfunc import getHwAddr
 
 from scapy.sendrecv import sniff, sendp
-from scapy.layers.dot11 import RadioTap, Dot11, Dot11Beacon, Dot11Elt, Dot11Auth, Dot11AssoReq, Dot11AssoResp, Dot11ProbeReq, Dot11Disas, Dot11QoS
+from scapy.layers.dot11 import RadioTap, Dot11, Dot11Beacon, Dot11Elt, Dot11Auth, Dot11AssoReq, Dot11AssoResp, Dot11ProbeReq, Dot11Disas, Dot11QoS, Dot11ProbeResp
 from scapy.layers.l2 import LLC, SNAP, EAPOL, EAP, LEAP, PEAP
 
 RESPONSE_TIMEOUT = 1.5	# time to wait for a response

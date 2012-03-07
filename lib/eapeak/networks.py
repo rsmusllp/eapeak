@@ -153,7 +153,7 @@ class WirelessNetwork:
 			output += '\tClient Data:\n'
 			i = 1
 			for client in self.clients.values():
-				output += '\t\tClient #' + str(i) + '\n' + client.show(2) + '\n'
+				output += '\t\tClient #' + str(i) + '\n' + client.show(2) + '\n\n'
 				i += 1
 		if self.x509certs:
 			output += '\tCertificates:'
