@@ -274,7 +274,7 @@ class WirelessStateMachine:
 		"""
 		real_destination = getDestination(packet)
 		real_bssid = getBSSID(packet)
-		real_source = getSource(packet)
+		#real_source = getSource(packet)
 		if real_destination == self.source_mac and real_bssid == self.bssid:# and real_source == self.dest_mac:
 			self.lastpacket = packet
 			return True
@@ -289,7 +289,9 @@ class WirelessStateMachine:
 			0:"No Error",
 			1:"Failed To Get Probe Response",
 			2:"Failed To Get Authentication Response",
-			3:"Failed To Get Association Response"
+			3:"Failed To Get Association Response",
+			4:"Authentication Request Received Fail Response",
+			5:"Association Request Received Fail Response"
 		}
 		"""
 		
@@ -300,8 +302,10 @@ class WirelessStateMachine:
 				iface=self.interface, verbose=False)
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None or not self.lastpacket.haslayer('Dot11Auth') or self.lastpacket.getlayer('Dot11Auth').status != 0:
+		if self.lastpacket == None or not self.lastpacket.haslayer('Dot11Auth'):
 			return 2
+		if self.lastpacket.getlayer('Dot11Auth').status != 0:
+			return 4
 		
 		# Dot11 Association Request
 		sendp(	RadioTap()/
@@ -314,8 +318,11 @@ class WirelessStateMachine:
 
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None:
+		if self.lastpacket == None or not self.lastpacket.haslayer(Dot11AssoResp):
 			return 3
+		
+		if self.lastpacket.getlayer(Dot11AssoResp).status != 0:
+			return 4
 		
 		self.connected = True
 		self.sequence = 0	# reset it

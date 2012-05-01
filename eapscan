@@ -183,11 +183,12 @@ def check_ap_connection(interface, bssid, essid, quite = True):
 		sys.stdout.write(STATUS + 'Checking Connection To AP')
 		sys.stdout.flush()
 	tries = 0
+	errCode = 0
 	try:
 		while tries < 3:
 			statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
 			errCode = statemachine.connect(essid)
-			if errCode:
+			if errCode != 0 and errCode < 4:
 				sleep(ERROR_SLEEP_TIME)
 				if not quite:
 					sys.stdout.write('.')
@@ -195,7 +196,8 @@ def check_ap_connection(interface, bssid, essid, quite = True):
 				tries += 1
 				continue
 			statemachine.close()
-			tries = 0
+			if errCode == 0:
+				tries = 0
 			break
 	except KeyboardInterrupt:
 		print '\n' + STATUS + 'Caught Ctrl+C'
@@ -203,6 +205,8 @@ def check_ap_connection(interface, bssid, essid, quite = True):
 	if tries != 0:
 		if not quite:
 			sys.stdout.write('\n' + ERROR + 'Connection Attempts Failed\n')
+			if errCode == 4 or errCode == 5:
+				sys.stdout.write('\n' + ERROR + 'Access Point Rejected Authentication/Associations Requests\n')
 			sys.stdout.flush()
 		return False
 	elif not quite:
