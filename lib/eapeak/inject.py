@@ -310,10 +310,10 @@ class WirelessStateMachine:
 		# Dot11 Association Request
 		sendp(	RadioTap()/
 				Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), subtype=0)/
-				Dot11AssoReq(cap='ESS+privacy+short-preamble+short-slot', listen_interval=10)/
+				Dot11AssoReq(cap='ESS+short-preamble+short-slot', listen_interval=10)/
 				Dot11Elt(ID=0, info=essid)/
-				Dot11Elt(ID=1, info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
-				Dot11Elt(ID=50, info='\x30\x48\x60\x6c'),
+				Dot11Elt(ID=1, info='\x82\x84\x0b\x16\x24\x30\x48\x6c')/
+				Dot11Elt(ID=50, info='\x0c\x12\x18\x60'),
 				iface=self.interface, verbose=False)
 
 		self.sequence += 1
