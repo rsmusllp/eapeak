@@ -37,7 +37,7 @@ import Queue
 from eapeak.common import getBSSID, getSource, getDestination
 from eapeak.networks import WirelessNetwork
 from eapeak.clients import WirelessClient
-from eapeak.parse import UNKNOWN_SSID_NAME
+from eapeak.parse import UNKNOWN_SSID_NAME, parseRSNData, buildRSNData
 from ipfunc import getHwAddr
 
 from scapy.sendrecv import sniff, sendp
@@ -281,7 +281,7 @@ class WirelessStateMachine:
 		self.lastpacket = None
 		return False
 		
-	def connect(self, essid):
+	def connect(self, essid, rsnInfo = ''):
 		"""
 		Connect/Associate with an access point.
 		errDict = {
@@ -294,6 +294,9 @@ class WirelessStateMachine:
 			5:"Association Request Received Fail Response"
 		}
 		"""
+		# Dot11 Probe Request (to get authentication information if applicable)
+		if rsnInfo == None:	# None explicitly means go get it, leave it '' to proceed with out it
+			rsnInfo = self.getRSNInformation(essid)
 		
 		# Dot11 Authentication Request
 		sendp(	RadioTap()/
@@ -313,7 +316,8 @@ class WirelessStateMachine:
 				Dot11AssoReq(cap='ESS+short-preamble+short-slot', listen_interval=10)/
 				Dot11Elt(ID=0, info=essid)/
 				Dot11Elt(ID=1, info='\x82\x84\x0b\x16\x24\x30\x48\x6c')/
-				Dot11Elt(ID=50, info='\x0c\x12\x18\x60'),
+				Dot11Elt(ID=50, info='\x0c\x12\x18\x60')/
+				rsnInfo,
 				iface=self.interface, verbose=False)
 
 		self.sequence += 1
@@ -344,7 +348,35 @@ class WirelessStateMachine:
 		sendp(RadioTap()/Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=0, subtype=12)/Dot11Disas(reason=3), iface=self.interface, verbose=False)
 		self.connected = False
 		return 0
-		
+	
+	def getRSNInformation(self, essid):
+		sendp(	RadioTap()/
+				Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), subtype=4)/
+				Dot11ProbeReq()/
+				Dot11Elt(ID=0, info=essid)/
+				Dot11Elt(ID=1, info='\x82\x84\x0b\x16\x24\x30\x48\x6c')/
+				Dot11Elt(ID=50, info='\x0c\x12\x18\x60'),
+				iface=self.interface, verbose=False)
+		self.sequence += 1
+		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
+		if self.lastpacket == None or not self.lastpacket.haslayer('Dot11ProbeResp'):
+			return None
+		probeResp = self.lastpacket.getlayer(Dot11ProbeResp)
+		tmp = probeResp.getlayer(Dot11Elt)
+		while tmp:
+			if tmp.fields.get('ID') == 48:
+				rsnInfo = tmp
+				break
+			else:
+				tmp = tmp.payload
+		if rsnInfo == None:
+			rsnInfo = ''	# we didn't find it in the probe response, so we'll return an empty string
+		else:
+			rsnInfo = parseRSNData(rsnInfo.info)
+			rsnInfo = buildRSNData(rsnInfo)
+			rsnInfo = '\x30' + chr(len(rsnInfo)) + rsnInfo
+		return rsnInfo
+	
 	def recv(self, bufferlen = 0):
 		"""
 		Read a frame and return the information above the Dot11 layer.

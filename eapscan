@@ -76,6 +76,17 @@ ERROR_SLEEP_TIME = 1.5	# time to wait between error and retry
 
 def eap_scan(interface, bssid, essid, check_range, outer_identity):
 	valid_eap_types = []
+	tries = 0
+	while tries < 5:
+		statemachine = WirelessStateMachineEAP(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
+		rsnInfo = statemachine.getRSNInformation(essid)
+		if rsnInfo != None:
+			break
+		tries += 1
+	if tries >= 5:
+		sys.stdout.write(BAD + 'Could not obtain a probe response\n')
+		sys.stdout.flush()
+		return valid_eap_types
 	try:
 		status_str = ''
 		for eaptype in check_range:
@@ -90,7 +101,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity):
 			tries = 0
 			while tries < 5:
 				statemachine = WirelessStateMachineEAP(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
-				errCode = statemachine.connect(essid)
+				errCode = statemachine.connect(essid, rsnInfo)
 				if errCode:
 					sleep(ERROR_SLEEP_TIME)
 					tries += 1
@@ -145,7 +156,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity):
 def wps_scan(interface, bssid, essid):
 	"""
 	This is very similar to running eapscan with the following options and is essentially a short cut
-	eapscan -c 11 -b 00:11:22:33:44:55 -e linksys -i mon0 --identity WFA-SimpleConfig-RegisHrar-1-1 --types 254
+	eapscan -c 11 -b 00:11:22:33:44:55 -e linksys -i mon0 --identity WFA-SimpleConfig-Registrar-1-0 --types 254
 	"""
 	print STATUS + 'Checking for WPS...'
 	try:

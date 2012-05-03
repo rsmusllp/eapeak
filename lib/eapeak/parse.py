@@ -36,7 +36,7 @@ try:
 	CURSES_CAPABLE = True
 except ImportError:
 	CURSES_CAPABLE = False
-from struct import unpack
+from struct import pack, unpack
 from binascii import unhexlify
 from time import sleep
 from xml.dom import minidom
@@ -182,7 +182,47 @@ def parseWPSData(wpsdata, trimStrings = True):
 				continue
 		data[type] = value
 	return data
-		
+
+def parseRSNData(rsndata):
+	"""
+	Take raw RSN data and return a dictionary representing it's values
+	Tag Number and Tag length are removed
+	"""
+	rsn = {}
+	rsn['version'] = unpack('<H', rsndata[:2])[0]
+	rsn['grp_cipher'] = rsndata[2:6]
+	
+	pair_ciphers = []
+	nbr_pair_cipher = unpack('<H', rsndata[6:8])[0]
+	rsndata = rsndata[8:]
+	while nbr_pair_cipher and len(rsndata):
+		pair_ciphers.append(rsndata[:4])
+		rsndata = rsndata[4:]
+		nbr_pair_cipher -= 1
+	rsn['pair_ciphers'] = pair_ciphers
+	
+	auth_key_mgmt = []
+	nbr_auth_key_mgmt = unpack('<H', rsndata[:2])[0]
+	rsndata = rsndata[2:]
+	while nbr_auth_key_mgmt and len(rsndata):
+		auth_key_mgmt.append(rsndata[:4])
+		rsndata = rsndata[4:]
+		nbr_auth_key_mgmt -= 1
+	rsn['auth_key_mgmts'] = auth_key_mgmt
+	rsn['capabilities'] = rsndata
+	return rsn
+
+def buildRSNData(rsn):
+	version = rsn.get('version') or 1
+	rsndata = pack('<H', version)
+	rsndata += rsn['grp_cipher']
+	rsndata += pack('<H', 1)
+	rsndata += rsn['pair_ciphers'][0]
+	rsndata += pack('<H', 1)
+	rsndata += rsn['auth_key_mgmts'][0]
+	rsndata += rsn.get('capabilities') or '\x00\x00'
+	return rsndata
+	
 class EapeakParsingEngine:
 	"""
 	This is the main parsing engine that manages all of the networks.
