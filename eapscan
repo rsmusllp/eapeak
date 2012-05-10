@@ -189,7 +189,7 @@ def wps_scan(interface, bssid, essid):
 		return False
 	return False
 
-def check_ap_connection(interface, bssid, essid, quite = True):
+def check_ap_connection(interface, bssid, essid, quite = True, verbose = False):
 	if not quite:
 		sys.stdout.write(STATUS + 'Checking Connection To AP')
 		sys.stdout.flush()
@@ -198,8 +198,14 @@ def check_ap_connection(interface, bssid, essid, quite = True):
 	try:
 		while tries < 3:
 			statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
+			if not quite and verbose:
+				print '\n' + STATUS + 'Verbose: using MAC address: ' + statemachine.source_mac + ' for testing connections'
 			errCode = statemachine.connect(essid)
 			if errCode != 0 and errCode < 4:
+				if not quite and verbose and errCode == 2:
+					print '\n' + ERROR + 'Verbose: did not receive a reply to the authentication request'
+				if not quite and verbose and errCode == 3:
+					print '\n' + ERROR + 'Verbose: did not receive a reply to the association request'
 				sleep(ERROR_SLEEP_TIME)
 				if not quite:
 					sys.stdout.write('.')
@@ -232,6 +238,7 @@ def main():
 	parser.add_argument('-i', '--iface', dest = 'iface', action = 'store', required = True, help = 'interface to use when capturing live')
 	parser.add_argument('-v', '--version', action = 'version', version = parser.prog + ' Version: ' + __version__)
 	parser.add_argument('-c', '--channel', dest = 'channel', action = 'store', required = False, default = 0, type = int, help = 'target channel')
+	parser.add_argument('-V', '--verbose', dest = 'verbose', action = 'store_true', default = False, help = 'provide verbose output')
 	parser.add_argument('--all', dest = 'scan_all', action = 'store_true', default = False, help = 'scan all EAP types (4-254)')
 	parser.add_argument('--check-wps', dest = 'check_wps', action = 'store_true', default = False, help = 'check if WPS is enabled')
 	parser.add_argument('--identity', dest = 'identity', action = 'store', default = 'eapscan', help = 'EAP outer identity string')
@@ -250,11 +257,22 @@ def main():
 	if not checkInterface(options.iface) in [ 0, 1 ]:
 		print ERROR + 'Invalid Interface, Now Exiting...'
 		return 4
+	
+	if options.verbose:
+		print STATUS + 'Verbose output has been enabled'
+	
+	if options.channel:
+		if not 0 < options.channel < 15:
+			print ERROR + 'Invalid Channel Selected, Must Be Between 1-14'
+			return 6
+		if not setInterfaceChannel(options.iface, options.channel, True):
+			print ERROR + 'Failed To Set The Selected Channel'
+			return 7
 
 	# Build the list of EAP types that we're scanning for
 	if options.check_wps:
 		# Make sure the AP is responding
-		if not check_ap_connection(options.iface, options.bssid, options.essid, False):
+		if not check_ap_connection(options.iface, options.bssid, options.essid, False, options.verbose):
 			print ERROR + 'Now Exiting...'
 			return 0
 		wps_scan(options.iface, options.bssid, options.essid)
@@ -280,16 +298,8 @@ def main():
 		check_range.sort()
 		check_range = check_range[4:]
 
-	if options.channel:
-		if not 0 < options.channel < 15:
-			print ERROR + 'Invalid Channel Selected, Must Be Between 1-14'
-			return 6
-		if not setInterfaceChannel(options.iface, options.channel, True):
-			print ERROR + 'Failed To Set The Selected Channel'
-			return 7
-
 	# Make sure the AP is responding
-	if not check_ap_connection(options.iface, options.bssid, options.essid, False):
+	if not check_ap_connection(options.iface, options.bssid, options.essid, False, options.verbose):
 		print ERROR + 'Now Exiting...'
 		return 0
 

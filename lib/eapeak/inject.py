@@ -326,7 +326,7 @@ class WirelessStateMachine:
 			return 3
 		
 		if self.lastpacket.getlayer(Dot11AssoResp).status != 0:
-			return 4
+			return 5
 		
 		self.connected = True
 		self.sequence = 0	# reset it
