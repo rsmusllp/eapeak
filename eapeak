@@ -127,7 +127,7 @@ def main():
 		parser.print_help()
 		return 0
 		
-	save_to_xml = ((not results.dont_save_xml & results.capture_live) | results.save_xml)
+	save_to_xml = (((not results.dont_save_xml) & results.capture_live) | results.save_xml)
 	export_x509 = results.export_x509
 	export_x509_format = results.export_x509_format
 	del results, parser, cert_opts
@@ -164,11 +164,19 @@ def main():
 	pcapFiles = []
 	for filename in storedFiles:
 		if 'xml' in filename.split('.')[-1]:
-			if not filename in xmlFiles:
-				xmlFiles.append(filename)
+			if filename in xmlFiles:
+				continue
+			if not os.access(filename, os.R_OK):
+				print 'Error: Could not read file \'' + filename + '\' (invalid permissions)'
+				continue
+			xmlFiles.append(filename)
 		elif 'cap' in filename.split('.')[-1]:
-			if not filename in pcapFiles:
-				pcapFiles.append(filename)
+			if filename in pcapFiles:
+				continue
+			if not os.access(filename, os.R_OK):
+				print 'Error: Could not read file \'' + filename + '\' (invalid permissions)'
+				continue
+			pcapFiles.append(filename)
 				
 	if xmlFiles:
 		eapeakParser.parseXMLFiles(xmlFiles, False)

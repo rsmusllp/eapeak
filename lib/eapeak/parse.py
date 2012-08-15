@@ -485,7 +485,7 @@ class EapeakParsingEngine:
 					bssid = getBSSID(packet)
 					if not bssid:
 						return
-					ssid = ''.join([c for c in tmp.fields['info'] if ord(c) > 31 or ord(c) == 9])
+					ssid = ''.join([c for c in tmp.fields['info'] if ((ord(c) > 31 or ord(c) == 9) and ord(c) < 128)])
 					if not ssid:
 						return
 					if bssid in self.OrphanedBSSIDs:								# if this info is relating to a BSSID that was previously considered to be orphaned
