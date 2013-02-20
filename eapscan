@@ -84,7 +84,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity):
 			break
 		tries += 1
 	if tries >= 5:
-		sys.stdout.write(BAD + 'Could not obtain a probe response\n')
+		sys.stdout.write(ERROR + 'Could not obtain a probe response\n')
 		sys.stdout.flush()
 		return valid_eap_types
 	try:
