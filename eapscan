@@ -74,11 +74,14 @@ STATUS = '\033[1;34m[*]\033[1;m '
 ERROR = '\033[1;31m[-]\033[1;m '
 ERROR_SLEEP_TIME = 1.5	# time to wait between error and retry
 
-def eap_scan(interface, bssid, essid, check_range, outer_identity):
+def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose = False):
 	valid_eap_types = []
 	tries = 0
 	while tries < 5:
 		statemachine = WirelessStateMachineEAP(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
+		if verbose:
+			sys.stdout.write(STATUS + 'Verbose: using source MAC address: ' + statemachine.source_mac + ' for connections\n')
+			sys.stdout.flush()
 		rsnInfo = statemachine.getRSNInformation(essid)
 		if rsnInfo != None:
 			break
@@ -92,15 +95,15 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity):
 		for eaptype in check_range:
 			sys.stdout.write((' ' * len(status_str)) + '\r')
 			sys.stdout.flush()
-			if eaptype in EAP_TYPES:
-				status_str = STATUS + 'Checking EAP Type: ' + EAP_TYPES[eaptype] + '\r'
-			else:
-				status_str = STATUS + 'Checking EAP Type: ' + str(eaptype) + '\r'
+			status_str = STATUS + 'Checking EAP Type: ' + EAP_TYPES.get(eaptype, str(eaptype)) + '\r'
 			sys.stdout.write(status_str)
 			sys.stdout.flush()
 			tries = 0
 			while tries < 5:
 				statemachine = WirelessStateMachineEAP(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
+				if verbose:
+					sys.stdout.write(STATUS + 'Verbose: using source MAC address: ' + statemachine.source_mac + ' for checking EAP type: ' + EAP_TYPES.get(eaptype, str(eaptype)) + '\n')
+					sys.stdout.flush()
 				errCode = statemachine.connect(essid, rsnInfo)
 				if errCode:
 					sleep(ERROR_SLEEP_TIME)
@@ -110,10 +113,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity):
 				if errCode == 0:	# supported
 					sys.stdout.write((' ' * len(status_str)) + '\r')
 					sys.stdout.flush()
-					if eaptype in EAP_TYPES:
-						status_str = GOOD + 'EAP Type: ' + EAP_TYPES[eaptype] + ' Supported\n'
-					else:
-						status_str = GOOD + 'EAP Type: ' + str(eaptype) + ' Supported\n'
+					status_str = GOOD + 'EAP Type: ' + EAP_TYPES.get(eaptype, str(eaptype)) + ' Supported\n'
 					sys.stdout.write(status_str)
 					sys.stdout.flush()
 					valid_eap_types.append(eaptype)
@@ -140,10 +140,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity):
 				continue
 			sys.stdout.write((' ' * len(status_str)) + '\r')
 			sys.stdout.flush()
-			if eaptype in EAP_TYPES:
-				status_str = ERROR + 'EAP Type: ' + EAP_TYPES[eaptype] + ' Could Not Be Determined\n'
-			else:
-				status_str = ERROR + 'EAP Type: ' + str(eaptype) + ' Could Not Be Determined\n'
+			status_str = ERROR + 'EAP Type: ' + EAP_TYPES.get(eaptype, str(eaptype)) + ' Could Not Be Determined\n'
 			sys.stdout.write(status_str)	# haha STD
 			sys.stdout.flush()
 	except KeyboardInterrupt:
@@ -199,7 +196,7 @@ def check_ap_connection(interface, bssid, essid, quite = True, verbose = False):
 		while tries < 3:
 			statemachine = WirelessStateMachine(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
 			if not quite and verbose:
-				print '\n' + STATUS + 'Verbose: using MAC address: ' + statemachine.source_mac + ' for testing connections'
+				print '\n' + STATUS + 'Verbose: using source MAC address: ' + statemachine.source_mac + ' for testing connections'
 			errCode = statemachine.connect(essid)
 			if errCode != 0 and errCode < 4:
 				if not quite and verbose and errCode == 2:
@@ -304,7 +301,7 @@ def main():
 		return 0
 
 	# Scan for the eap types
-	valid_eap_types = eap_scan(options.iface, options.bssid, options.essid, check_range, options.identity)
+	valid_eap_types = eap_scan(options.iface, options.bssid, options.essid, check_range, options.identity, options.verbose)
 
 	if options.save_xml:
 		eapeakParser = EapeakParsingEngine()
