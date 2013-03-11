@@ -110,7 +110,7 @@ def main():
 	save_xml_parser.add_argument('--no-xml', dest = 'dont_save_xml', action = 'store_true', default = False, help = 'don\'t export data to xml (default: save when capturing)')
 	save_xml_parser.add_argument('--xml', dest = 'save_xml', action = 'store_true', default = False, help = 'export data to xml (default: save when capturing)')
 
-	cert_opts = parser.add_argument_group('certificate export options')
+	cert_opts = parser.add_argument_group('access-point certificate export options')
 	cert_opts.add_argument('--export-x509', dest = 'export_x509', action = 'store_true', default = False, help = 'start EAPeak certificate export wizard')
 	cert_opts.add_argument('--x509-format', dest = 'export_x509_format', action = 'store', choices = ['der', 'pem'], default = 'pem', help = 'format to save certificates as, default: pem')
 
@@ -230,6 +230,9 @@ def main():
 			network = eapeakParser.KnownNetworks[network]
 			for cert in network.x509certs:
 				certs[cert] = network.ssid
+		if len(certs) == 0:
+			print 'No Certificates Are Available For Exporting'
+			return 0
 		output = '\nAvailable Certificates:\n'
 		i = 1
 		for cert in certs.keys():
