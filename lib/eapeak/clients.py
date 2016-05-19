@@ -1,33 +1,50 @@
-"""
-	-*- coding: utf-8 -*-
-	clients.py
-	Provided by Package: eapeak
-	
-	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
-	
-	Copyright 2011 SecureState
-	
-	This program is free software; you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; either version 2 of the License, or
-	(at your option) any later version.
-	
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-	
-	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-	MA 02110-1301, USA.
-		
-"""
+#!/usr/bin/env python
+#
+# -*- coding: utf-8 -*-
+#
+#  lib/eapeak/clients.py
+#
+#  Author: Spencer McIntyre (Steiner) <smcintyre [at] securestate [dot] com>
+#
+#  Copyright 2011 SecureState
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
+#    agent0x0
+#    f8lerror
+#    jagar
+#    WhIPsmACK0
+#    Zamboni
+#
+#  Additional Thanks To:
+#    Joshua Wright
+#    Zero_Chaos
+#    Steve Ocepek
 
-from scapy.layers.l2 import eap_types as EAP_TYPES
-from binascii import hexlify
+# native imports
 from base64 import standard_b64encode as b64encode
+from binascii import hexlify
 from xml.sax.saxutils import escape as XMLEscape
+
+# project imports
+
+# external imports
+from scapy.layers.l2 import eap_types as EAP_TYPES
+
 EAP_TYPES[0] = 'NONE'
 
 class WirelessClient:
@@ -63,7 +80,7 @@ class WirelessClient:
 		if not identity in self.identities.keys() and identity:
 			self.identities[identity] = eaptype
 			
-	def addMSChapInfo(self, eaptype, challenge = None, response = None, identity = None):
+	def addMSChapInfo(self, eaptype, challenge=None, response=None, identity=None):
 		"""
 		Adds information to the internal "mschap" list which contains
 		dictionaries for each set with keys of:
@@ -97,7 +114,7 @@ class WirelessClient:
 			else:
 				return 2												# we seem to have received 2 response strings without a challenge in between
 
-	def show(self, tabs = 0):
+	def show(self, tabs=0):
 		"""
 		This returns a string of human readable information describing
 		the client object, tabs is an optional offset.
@@ -135,7 +152,7 @@ class WirelessClient:
 					if the_cheese_stands_alone:
 						output += ('\t' * tabs) + 'WPS Information:\n'
 						the_cheese_stands_alone = False
-					output += ('\t' * tabs) + '\t' + piece + ': ' + self.wpsData[piece] + '\n'
+					output += ('\t' * tabs) + '\t' + piece + ': ' + self.wpsData[piece] + '\n' # pylint: disable=unsubscriptable-object
 		return output.rstrip()
 
 	def getXML(self):
@@ -154,7 +171,8 @@ class WirelessClient:
 			tmp.text = XMLEscape(identity)
 			
 		for respObj in self.mschap:
-			if not 'r' in respObj: continue
+			if not 'r' in respObj:
+				continue
 			tmp = ElementTree.SubElement(root, 'mschap')
 			tmp.set('eap-type', str(respObj['t']))
 			tmp.set('identity', XMLEscape(respObj['i']))
@@ -166,10 +184,10 @@ class WirelessClient:
 			for info in ['manufacturer', 'model name', 'model number', 'device name']:
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
-					tmp.text = self.wpsData[info]
+					tmp.text = self.wpsData[info] # pylint: disable=unsubscriptable-object
 			for info in ['uuid', 'registrar nonce', 'enrollee nonce']:	# values that should be base64 encoded
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
 					tmp.set('encoding', 'base64')
-					tmp.text = b64encode(self.wpsData[info])
+					tmp.text = b64encode(self.wpsData[info]) # pylint: disable=unsubscriptable-object
 		return root

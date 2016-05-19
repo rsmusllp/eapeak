@@ -5,3 +5,4 @@
 *.log
 *.py[cod]
 *.yml
+build/*

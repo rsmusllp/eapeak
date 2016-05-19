@@ -1,48 +1,60 @@
-"""
-	-*- coding: utf-8 -*-
-	inject.py
-	Provided by Package: eapeak
-	
-	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
-	
-	Copyright 2011 SecureState
-	
-	This program is free software; you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; either version 2 of the License, or
-	(at your option) any later version.
-	
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-	
-	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-	MA 02110-1301, USA.
+#!/usr/bin/env python
+#
+# -*- coding: utf-8 -*-
+#
+#  lib/eapeak/inject.py
+#
+#  Author: Spencer McIntyre (Steiner) <smcintyre [at] securestate [dot] com>
+#
+#  Copyright 2011 SecureState
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
+#    agent0x0
+#    f8lerror
+#    jagar
+#    WhIPsmACK0
+#    Zamboni
+#
+#  Additional Thanks To:
+#    Joshua Wright
+#    Zero_Chaos
+#    Steve Ocepek
 
-"""
-
-__version__ = '0.0.5'
-
-from binascii import hexlify, unhexlify
-from socket import error as socketError
-from struct import pack, unpack
-from random import randint
-from time import sleep
-import threading
+# native imports
 import Queue
+from random import randint
+from struct import pack, unpack
+import threading
+from time import sleep
 
+# project imports
+from eapeak.clients import WirelessClient
 from eapeak.common import getBSSID, getSource, getDestination
 from eapeak.networks import WirelessNetwork
-from eapeak.clients import WirelessClient
 from eapeak.parse import UNKNOWN_SSID_NAME, parseRSNData, buildRSNData
 from ipfunc import getHwAddr
 
-from scapy.sendrecv import sniff, sendp
+# external imports
 from scapy.layers.dot11 import RadioTap, Dot11, Dot11Beacon, Dot11Elt, Dot11Auth, Dot11AssoReq, Dot11AssoResp, Dot11ProbeReq, Dot11Disas, Dot11QoS, Dot11ProbeResp
 from scapy.layers.l2 import LLC, SNAP, EAPOL, EAP, LEAP, PEAP
+from scapy.sendrecv import sniff, sendp
+
+__version__ = '0.0.5'
 
 RESPONSE_TIMEOUT = 1.5	# time to wait for a response
 PRIVACY_NONE = 0
@@ -58,7 +70,7 @@ class SSIDBroadcaster(threading.Thread):
 	This object is a thread-friendly SSID broadcaster
 	It's meant to be controlled by the Wireless State Machine
 	"""
-	def __init__(self, interface, essid, bssid = None):
+	def __init__(self, interface, essid, bssid=None):
 		threading.Thread.__init__(self)
 		self.interface = interface
 		self.essid = essid
@@ -71,7 +83,7 @@ class SSIDBroadcaster(threading.Thread):
 		self.sequence = randint(1200, 2000)
 		self.__shutdown__ = False
 
-	def __unfuckupSC__(self, fragment = 0):
+	def __unfuckupSC__(self, fragment=0):
 		"""
 		This is a reserved method to return the sequence number in a way
 		that is not fucked up by a bug in how the SC field is packed in
@@ -98,11 +110,11 @@ class SSIDBroadcaster(threading.Thread):
 		Configure the privacy settings for None, WEP, and WPA
 		"""
 		if value == PRIVACY_NONE:
-			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=self.essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 		elif value == PRIVACY_WEP:
-			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=self.essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 		elif value == PRIVACY_WPA:
-			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=self.essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=self.essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 
 	def sendBeacon(self):
 		"""
@@ -112,7 +124,7 @@ class SSIDBroadcaster(threading.Thread):
 		sendp(self.beacon, iface=self.interface, verbose=False)
 	
 	@staticmethod
-	def sendBeaconEx(essid, interface, privacy = PRIVACY_NONE, bssid = None, channel = 6):
+	def sendBeaconEx(essid, interface, privacy=PRIVACY_NONE, bssid=None, channel=6):
 		"""
 		Convenience function for sending beacons without a thread or creating an instance
 		"""
@@ -122,11 +134,11 @@ class SSIDBroadcaster(threading.Thread):
 		sequence = randint(1200, 2000)
 		
 		if privacy in [PRIVACY_NONE, 'none', 'NONE']:
-			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 		elif privacy in [PRIVACY_WEP, 'wep', 'WEP']:
-			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 		elif privacy in [PRIVACY_WPA, 'wpa', 'WPA']:
-			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info=essid)/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 		else:
 			raise Exception('Invalid privacy setting')
 		sendp(beacon, iface=interface, verbose=False)
@@ -140,7 +152,7 @@ class ClientListener(threading.Thread):
 	full because the items are not being handled fast enough then new
 	association requests will be dropped and lost.
 	"""
-	def __init__(self, interface, backlog, essid = None, bssid = None):
+	def __init__(self, interface, backlog, essid=None, bssid=None):
 		threading.Thread.__init__(self)
 		self.interface = interface
 		self.backlog = backlog
@@ -154,7 +166,7 @@ class ClientListener(threading.Thread):
 		self.sequence = randint(1200, 2000)
 		self.__shutdown__ = False
 		
-	def __unfuckupSC__(self, fragment = 0):
+	def __unfuckupSC__(self, fragment=0):
 		"""
 		This is a reserved method to return the sequence number in a way
 		that is not fucked up by a bug in how the SC field is packed in
@@ -187,11 +199,11 @@ class ClientListener(threading.Thread):
 		Configure the privacy settings for None, WEP, and WPA
 		"""
 		if value == PRIVACY_NONE:
-			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info='')/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info='')/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 		elif value == PRIVACY_WEP:
-			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID",info='')/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID", info='')/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 		elif value == PRIVACY_WPA:
-			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID",info='')/Dot11Elt(ID="Rates",info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset",info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info='')/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 		
 	def run(self):
 		"""
@@ -209,11 +221,11 @@ class ClientListener(threading.Thread):
 						if tmp.fields['ID'] == 0:
 							ssid = tmp.info
 							break
-					if ssid == None:
+					if ssid is None:
 						continue
 					elif ssid == '' and self.essid:
 						ssid = self.essid
-					if self.essid == None or self.essid == ssid:
+					if self.essid is None or self.essid == ssid:
 						self.probe_response_template.getlayer(Dot11).addr1 = getSource(self.lastpacket)
 						self.probe_response_template.getlayer(Dot11Elt).info = ssid
 						sendp(self.probe_response_template, iface=self.interface, verbose=False)
@@ -233,7 +245,7 @@ class WirelessStateMachine:
 	Remember:
 	States Are For Smashing
 	"""
-	def __init__(self, interface, bssid, source_mac = None, dest_mac = None):
+	def __init__(self, interface, bssid, source_mac=None, dest_mac=None):
 		"""
 		You must specify a BSSID and a Local MAC address because the
 		entire point of this code is to facilitate stateful connections.
@@ -258,7 +270,7 @@ class WirelessStateMachine:
 		self.shutdown()
 		self.close()
 	
-	def __unfuckupSC__(self, fragment = 0):
+	def __unfuckupSC__(self, fragment=0):
 		"""
 		This is a reserved method to return the sequence number in a way
 		that is not fucked up by a bug in how the SC field is packed in
@@ -281,7 +293,7 @@ class WirelessStateMachine:
 		self.lastpacket = None
 		return False
 		
-	def connect(self, essid, rsnInfo = ''):
+	def connect(self, essid, rsnInfo=''):
 		"""
 		Connect/Associate with an access point.
 		errDict = {
@@ -295,23 +307,23 @@ class WirelessStateMachine:
 		}
 		"""
 		# Dot11 Probe Request (to get authentication information if applicable)
-		if rsnInfo == None:	# None explicitly means go get it, leave it '' to proceed with out it
+		if rsnInfo is None:	# None explicitly means go get it, leave it '' to proceed with out it
 			rsnInfo = self.getRSNInformation(essid)
 		
 		# Dot11 Authentication Request
-		sendp(	RadioTap()/
+		sendp(RadioTap()/
 				Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__())/
 				Dot11Auth(seqnum=1),
 				iface=self.interface, verbose=False)
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None or not self.lastpacket.haslayer('Dot11Auth'):
+		if self.lastpacket is None or not self.lastpacket.haslayer('Dot11Auth'):
 			return 2
 		if self.lastpacket.getlayer('Dot11Auth').status != 0:
 			return 4
 		
 		# Dot11 Association Request
-		sendp(	RadioTap()/
+		sendp(RadioTap()/
 				Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), subtype=0)/
 				Dot11AssoReq(cap='ESS+short-preamble+short-slot', listen_interval=10)/
 				Dot11Elt(ID=0, info=essid)/
@@ -322,7 +334,7 @@ class WirelessStateMachine:
 
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None or not self.lastpacket.haslayer(Dot11AssoResp):
+		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11AssoResp):
 			return 3
 		
 		if self.lastpacket.getlayer(Dot11AssoResp).status != 0:
@@ -350,7 +362,7 @@ class WirelessStateMachine:
 		return 0
 	
 	def getRSNInformation(self, essid):
-		sendp(	RadioTap()/
+		sendp(RadioTap()/
 				Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), subtype=4)/
 				Dot11ProbeReq()/
 				Dot11Elt(ID=0, info=essid)/
@@ -359,7 +371,7 @@ class WirelessStateMachine:
 				iface=self.interface, verbose=False)
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
-		if self.lastpacket == None or not self.lastpacket.haslayer('Dot11ProbeResp'):
+		if self.lastpacket is None or not self.lastpacket.haslayer('Dot11ProbeResp'):
 			return None
 		probeResp = self.lastpacket.getlayer(Dot11ProbeResp)
 		tmp = probeResp.getlayer(Dot11Elt)
@@ -369,7 +381,7 @@ class WirelessStateMachine:
 				break
 			else:
 				tmp = tmp.payload
-		if rsnInfo == None:
+		if rsnInfo is None:
 			rsnInfo = ''	# we didn't find it in the probe response, so we'll return an empty string
 		else:
 			rsnInfo = parseRSNData(rsnInfo.info)
@@ -377,7 +389,7 @@ class WirelessStateMachine:
 			rsnInfo = '\x30' + chr(len(rsnInfo)) + rsnInfo
 		return rsnInfo
 	
-	def recv(self, bufferlen = 0):
+	def recv(self, bufferlen=0):
 		"""
 		Read a frame and return the information above the Dot11 layer.
 		"""
@@ -387,7 +399,7 @@ class WirelessStateMachine:
 		else:
 			return None
 		
-	def send(self, data, dot11_type = 2, dot11_subtype = 8, FCfield = 0x02, raw = True):
+	def send(self, data, dot11_type=2, dot11_subtype=8, FCfield=0x02, raw=True):
 		"""
 		Send a frame, if raw, insert the data above the Dot11QoS layer.
 		"""
@@ -412,7 +424,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 	This is to keep the EAP functionality seperate so the core State-
 	Machine can be repurposed for other projects.
 	"""
-	def check_eap_type(self, eaptype, outer_identity = 'user', eapol_start = False):
+	def check_eap_type(self, eaptype, outer_identity='user', eapol_start=False):
 		"""
 		Check that an eaptype is supported.
 		errDict = {
@@ -426,28 +438,30 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		if eapol_start:
 			eapol_start_request = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=1)
 			self.sequence += 1
-			for i in range(0, 3):
+			i = 0
+			while i < 3:
 				sendp(eapol_start_request, iface=self.interface, verbose=False)
 				sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
-				if not self.lastpacket == None:
+				if not self.lastpacket is None:
 					if self.lastpacket.haslayer('EAP'):
 						fields = self.lastpacket.getlayer(EAP).fields
 						if 'type' in fields and fields['type'] == 1 and fields['code'] == 1:
 							i = 0
 							eapid = fields['id']
 							break
+				i += 1
 			if i == 2:
 				return 2
 
 		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, id=eapid, identity=outer_identity)
 		self.sequence += 1
-		eap_legacy_nak = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0, len=6)/EAP(code=2, type=3, id=eapid + 1, eap_types=[ eaptype ])
+		eap_legacy_nak = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__unfuckupSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0, len=6)/EAP(code=2, type=3, id=eapid + 1, eap_types=[eaptype])
 		self.sequence += 1
 		
 		for i in range(0, 3):
 			sendp(eap_identity_response, iface=self.interface, verbose=False)
 			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
-			if not self.lastpacket == None:
+			if not self.lastpacket is None:
 				if self.lastpacket.haslayer('EAP'):
 					fields = self.lastpacket.getlayer(EAP).fields
 					if fields['code'] == 4:	# 4 is a failure
@@ -462,7 +476,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		for i in range(0, 3):
 			sendp(eap_legacy_nak, iface=self.interface, verbose=False)
 			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
-			if not self.lastpacket == None:
+			if not self.lastpacket is None:
 				if self.lastpacket.haslayer('EAP'):
 					fields = self.lastpacket.getlayer(EAP).fields
 					if 'type' in fields and fields['type'] == eaptype:
@@ -482,7 +496,7 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		iPod Touch 1.1.4
 		Android 2.2
 	"""
-	def __init__(self, interface, bssid, essid = None):
+	def __init__(self, interface, bssid, essid=None):
 		self.essid = essid
 		self.privacy = PRIVACY_NONE
 		self.backlog = 5												# sets a default incase listen() hasn't been called, which may be the case if we're responding to multiple network probes
@@ -497,7 +511,7 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 	def __del__(self):
 		self.shutdown()
 		
-	def listen(self, backlog,  broadcast_interval = 0.25):
+	def listen(self, backlog, broadcast_interval=0.25):
 		"""
 		This sets and starts the SSIDBroadcaster thread and is meant to
 		be called once per initialization.
@@ -527,7 +541,8 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 		PythonSoftAP but may be lost if accept() is not called again
 		before the clients timeout.
 		"""
-		if self.__shutdown__: return
+		if self.__shutdown__:
+			return
 		if not hasattr(self, 'client_listener'):
 			self.client_listener = ClientListener(self.interface, self.backlog, self.essid, self.bssid)
 			self.client_listener.setPrivacy(self.privacy)
@@ -544,7 +559,8 @@ class WirelessStateMachineSoftAP(WirelessStateMachine):
 			while tries:
 				tries -= 1
 				data = sockObj.recv()
-				if not data: continue
+				if not data:
+					continue
 				if data.haslayer('Dot11AssoReq'): 
 					break
 				elif data.haslayer(Dot11Auth):
@@ -577,7 +593,7 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 		
 		# EAP Crap Goes Here
 		self.__mschap_challenge__ = None
-		self.eap_priorities = [ ]
+		self.eap_priorities = []
 		self.eap_handlers = {
 								17:self.handleLEAP,
 								25:self.handlePEAP
@@ -585,13 +601,13 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 	
 	@property
 	def mschap_challenge(self):
-		if self.__mschap_challenge__ == None:
-			return ''.join([ pack('B', randint(0, 255)) for x in range(8) ])
+		if self.__mschap_challenge__ is None:
+			return ''.join([pack('B', randint(0, 255)) for _ in range(8)])
 		return self.__mschap_challenge__
 	
 	@mschap_challenge.setter
 	def mschap_challenge(self, value):
-		if value == None:
+		if value is None:
 			self.__mschap_challenge__ = None
 			return
 		elif len(value) != 8:
@@ -621,7 +637,8 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 			while tries:
 				tries -= 1
 				data = sockObj.recv()
-				if not data: continue
+				if not data:
+					continue
 				if data.haslayer(EAPOL):
 					tries = self.max_tries
 					break
@@ -635,7 +652,7 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 				tries -= 1
 				sockObj.send('\x00\x00'/LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=1, id=0, identity='\x00networkid=' + self.essid + ',nasid=AP,portid=0'), FCfield=2, raw=True)
 				data = sockObj.recv()
-				if data == None:
+				if data is None:
 					continue
 				if not data.haslayer(EAP):
 					continue
@@ -648,7 +665,7 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 				continue
 
 			eaptype = self.eap_priorities[0]
-			(errCode, eap_types) = self.eap_handlers[eaptype](sockObj, data.identity)
+			self.eap_handlers[eaptype](sockObj, data.identity)
 			
 			self.networkDescriptor.addClient(sockObj.clientDescriptor)
 			return sockObj, clientMAC
@@ -660,7 +677,7 @@ class WirelessStateMachineSoftAPEAP(WirelessStateMachineSoftAP):
 			tries -= 1
 			sockObj.send('\x00\x00'/LLC(dsap=0xaa, ssap=0xaa, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=2, type=0)/EAP(code=1, type=17, id=2)/LEAP(data=self.mschap_challenge), FCfield=2, raw=True)
 			data = sockObj.recv()
-			if data == None:
+			if data is None:
 				continue
 			if not data.haslayer(EAP):
 				continue

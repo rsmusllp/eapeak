@@ -1,33 +1,56 @@
-"""
-Created By: Spencer McIntyre
-September 2009
-	   
-	Copyright 2009 Spencer McIntyre
-   
-	This program is free software; you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; either version 2 of the License, or
-	(at your option) any later version.
-   
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-   
-	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-	MA 02110-1301, USA.
+#!/usr/bin/env python
+#
+# -*- coding: utf-8 -*-
+#
+#  lib/ipfunc.py
+#
+#  Author: Spencer McIntyre (Steiner) <smcintyre [at] securestate [dot] com>
+#
+#  Copyright 2011 SecureState
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
+#    agent0x0
+#    f8lerror
+#    jagar
+#    WhIPsmACK0
+#    Zamboni
+#
+#  Additional Thanks To:
+#    Joshua Wright
+#    Zero_Chaos
+#    Steve Ocepek
 
-	Distributed as part of EAPeak, http://www.securestate.net
-	This module contains misc. ip related functions.
-"""
+# native imports
+from fcntl import ioctl
+from random import randint
+from socket import inet_ntoa, socket, AF_INET, SOCK_DGRAM
+import struct
+from struct import pack
+
+# project imports
+
+# external imports
 
 __doc__ = 'Distributed as part of CORI, http://sourceforge.net/projects/cori-python/\n\nThis module contains misc. ip related functions.'
 __version__ = '1.8'
 numbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
 
-def bin(n):												# Necessary for Python versions < 2.6 which are stupid, update to the latest version you lazy bastards.
+def _bin(n):												# Necessary for Python versions < 2.6 which are stupid, update to the latest version you lazy bastards.
 	"""
 	Necessary for Python versions < 2.6 which are stupid, update to the latest version you lazy bastards.
 	"""
@@ -47,24 +70,28 @@ class ParseError(Exception):							# This is an Exception to be raised if the pa
 	"""
 	This is an Exception to be raised if the parseDash or parseCIDR methods detect invalid syntax.  Error numbers 10 through 19 are Dashed notation errors, 20 through 29 are CIDR notation errors.
 	"""
-	errDict = {	1:'Range Format Not Recognized',
-				10:'Invalid Format In Dash Notation',
-				11:'An Octet Is Not Within The Permissible Range (0-255)',
-				12:'Invalid Number Of Octets In Range',
-				13:'An Invalid Character Has Been Dected Within The Range',
-				20:'Invalid Format In CIDR Notation',
-				21:'The Network Prefix Is Not Within The Permissible Range (1 - 32)',
-				22:'The IP Address Is Invalid',
-				23:'The Network Prefix Results In To Many Items For Python'	}
+	errDict = {
+		1: 'Range Format Not Recognized',
+		10: 'Invalid Format In Dash Notation',
+		11: 'An Octet Is Not Within The Permissible Range (0-255)',
+		12: 'Invalid Number Of Octets In Range',
+		13: 'An Invalid Character Has Been Dected Within The Range',
+		20: 'Invalid Format In CIDR Notation',
+		21: 'The Network Prefix Is Not Within The Permissible Range (1 - 32)',
+		22: 'The IP Address Is Invalid',
+		23: 'The Network Prefix Results In To Many Items For Python'
+	}
 	def __init__(self, msg):
 		if msg in self.errDict.keys():
 			self.msg = self.errDict[msg]
 		else:
 			self.msg = 'Undefined Error Code: ' + str(msg)
+		
+		super(ParseError, self).__init__()
 	def __str__(self):
 		return repr(self.msg)
 
-def sanitizeMAC(addr, ciscoFormat = False):				# This function will return True if the string passed to it looks like a real MAC address.  ciscoFormat defines whether to expect Cisco\'s xxxx.xxxx.xxxx format.
+def sanitizeMAC(addr, ciscoFormat=False):				# This function will return True if the string passed to it looks like a real MAC address.  ciscoFormat defines whether to expect Cisco\'s xxxx.xxxx.xxxx format.
 	"""
 	This function will return True if the string passed to it looks like a real MAC address.  ciscoFormat defines whether to expect Cisco\'s xxxx.xxxx.xxxx format.
 	"""
@@ -98,12 +125,12 @@ def sanitizeIP(addr):									# This function will return True if the string pas
 	addr = addr.split('.')
 	if len(addr) != 4:
 		return False
-	for i in range(len(addr)):
+	for addr_piece in addr:
 		try:
-			int(addr[i])
+			int(addr_piece)
 		except ValueError:
 			return False
-		if int(addr[i]) < 0 or int(addr[i]) > 255:
+		if int(addr_piece) < 0 or int(addr_piece) > 255:
 			return False
 	return True
 	
@@ -111,17 +138,17 @@ def parseDash(addr):									# This function takes an ip address in dashed notat
 	"""
 	This function takes an ip address in dashed notations such as "10.0.1-4.1-254" and returns a list of all of the ip addresses.
 	"""
-	addr = filter(lambda x: x in numbers + ['.', '-', '*'], addr)
+	addr = [x in numbers + ['.', '-', '*'] for x in addr]
 	addr = addr.split('.')
 	ipList = []
 	addrList = []
 
 	if len(addr) == 4:
-		for i in range(0,4):
+		for i in range(0, 4):
 			try:
 				if addr[i].find('-') != -1:
 					templist = addr[i].split('-')
-					if int(templist[1])>=int(templist[0]):
+					if int(templist[1]) >= int(templist[0]):
 						addrList.append(templist[0])
 						addrList.append(templist[1])
 					else:
@@ -147,12 +174,10 @@ def parseDash(addr):									# This function takes an ip address in dashed notat
 					ipList.append(str(counta) + '.' + str(countb) + '.' + str(countc) + '.' + str(countd))
 	return ipList
 	
-def parseCIDR(addr, hostsOnly = True):					# This function takes an ip address in CIDR notations such as "10.0.0.0/24" and returns a list of all of the  ip addresses.  The hostsOnly option returns only valid host IP addresses (network and broadcast addresses are removed).
+def parseCIDR(addr, hostsOnly=True):					# This function takes an ip address in CIDR notations such as "10.0.0.0/24" and returns a list of all of the  ip addresses.  The hostsOnly option returns only valid host IP addresses (network and broadcast addresses are removed).
 	"""
 	This function takes an ip address in CIDR notations such as "10.0.0.0/24" and returns a list of all of the  ip addresses.  If there is an error it will return an empty list.  The hostsOnly option returns only valid host IP addresses (network and broadcast addresses are removed).
 	"""
-	from struct import pack
-	from socket import inet_ntoa
 	addr = addr.split('/')
 	try:
 		if not addr[1].isdigit():
@@ -169,7 +194,7 @@ def parseCIDR(addr, hostsOnly = True):					# This function takes an ip address i
 		raise ParseError(22)
 	ipaddress = ''
 	for part in addr.split('.'):
-		part = bin(int(part))[2:]
+		part = _bin(int(part))[2:]
 		while len(part) < 8:
 			part = '0' + part
 		ipaddress += part
@@ -180,7 +205,7 @@ def parseCIDR(addr, hostsOnly = True):					# This function takes an ip address i
 	ipList = []
 	try:
 		for i in range(0, 2**(len(ipsuffix))):
-			i = bin(i)[2:]
+			i = _bin(i)[2:]
 			while len(i) < (32 - net):
 				i = '0' + i
 			binary = ipprefix + i
@@ -210,7 +235,7 @@ def getflags(flags):									# This function will take the binary form of the fl
 	"""
 	This function will take the binary form of the flags in the form of a byte within a TCP segment and return a list of flags
 	"""
-	flagdict = {128:'RE0', 64:'RE1', 32:'URG', 16:'ACK', 8:'PSH', 4:'RST', 2:'SYN', 1:'FIN' }#the first two are reserved
+	flagdict = {128:'RE0', 64:'RE1', 32:'URG', 16:'ACK', 8:'PSH', 4:'RST', 2:'SYN', 1:'FIN'}#the first two are reserved
 	flags = struct.unpack('B', flags)[0]
 	flagsindata = []
 	flaglist = flagdict.keys()
@@ -243,7 +268,6 @@ def wiresharkHexToBinary(string):						# This allows you to copy the "Bytes (Hex
 	"""
 	This allows you to copy the "Bytes (Hex Stream)" field from wireshark and convert it to actual packed binary for quick reuse.
 	"""
-	from struct import pack
 	i = 0
 	newString = ""
 	while i < len(string):
@@ -255,8 +279,6 @@ def fuzzPackedBinary(binary):							# Fuzz a packed binary string with arbitrary
 	"""
 	Fuzz a packed binary string with arbitrary data.  No analysis takes place.
 	"""
-	from random import randint
-	from struct import pack
 	action = randint(0, 2)
 	length = len(binary)
 	if action < 0:
@@ -275,7 +297,7 @@ def fuzzPackedBinary(binary):							# Fuzz a packed binary string with arbitrary
 		if add:
 			position = randint(0, length)
 			newdata = pack('B', randint(0, 255))
-			newdata = newdata * {0:1, 1:10, 2:100, 3:500}[randint(0,3)]
+			newdata = newdata * {0:1, 1:10, 2:100, 3:500}[randint(0, 3)]
 			binary = binary[:position] + newdata + binary[position:]
 		else:
 			start = randint(0, length - 2)
@@ -287,9 +309,6 @@ def getHwAddr(ifname):									# Return the MAC address associated with a networ
 	"""
 	Return the MAC address associated with a network interface, available only on Linux
 	"""
-	from socket import socket, AF_INET, SOCK_DGRAM
-	from fcntl import ioctl
-	from struct import pack
 	s = socket(AF_INET, SOCK_DGRAM)
-	info = ioctl(s.fileno(), 0x8927,  pack('256s', ifname[:15]))
+	info = ioctl(s.fileno(), 0x8927, pack('256s', ifname[:15]))
 	return ''.join(['%02x:' % ord(char) for char in info[18:24]])[:-1]

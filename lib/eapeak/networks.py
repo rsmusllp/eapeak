@@ -1,36 +1,52 @@
-"""
-	-*- coding: utf-8 -*-
-	networks.py
-	Provided by Package: eapeak
-	
-	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
-	
-	Copyright 2011 SecureState
-	
-	This program is free software; you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; either version 2 of the License, or
-	(at your option) any later version.
-	
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-	
-	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-	MA 02110-1301, USA.
-		
-"""
+#!/usr/bin/env python
+#
+# -*- coding: utf-8 -*-
+#
+#  lib/eapeak/networks.py
+#
+#  Author: Spencer McIntyre (Steiner) <smcintyre [at] securestate [dot] com>
+#
+#  Copyright 2011 SecureState
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
+#    agent0x0
+#    f8lerror
+#    jagar
+#    WhIPsmACK0
+#    Zamboni
+#
+#  Additional Thanks To:
+#    Joshua Wright
+#    Zero_Chaos
+#    Steve Ocepek
 
-from scapy.layers.l2 import eap_types as EAP_TYPES
-from xml.sax.saxutils import escape as XMLEscape
+# native imports
 from base64 import standard_b64encode as b64encode
-from M2Crypto import X509
-from eapeak.common import EXPANDED_EAP_VENDOR_IDS
-EAP_TYPES[0] = 'NONE'
+from xml.sax.saxutils import escape as XMLEscape
 
+# project imports
+from eapeak.common import EXPANDED_EAP_VENDOR_IDS
+
+# external imports
+from M2Crypto import X509
+from scapy.layers.l2 import eap_types as EAP_TYPES
+
+EAP_TYPES[0] = 'NONE'
 
 class WirelessNetwork:
 	"""
@@ -42,7 +58,7 @@ class WirelessNetwork:
 	"""
 	ssid = ''	# this is unique
 	
-	def __init__(self, ssid, bssid = ''):
+	def __init__(self, ssid, bssid=''):
 		self.bssids = []
 		self.clients = {}	# indexed by client MAC
 		self.eapTypes = []
@@ -69,7 +85,7 @@ class WirelessNetwork:
 		if not isinstance(certificate, X509.X509):
 			try:
 				certificate = X509.load_cert_string(certificate, X509.FORMAT_DER)
-			except:
+			except: # pylint: disable=bare-except
 				return 1
 				
 		newFingerprint = certificate.get_fingerprint()
@@ -105,10 +121,7 @@ class WirelessNetwork:
 		"""
 		Checks that a client has been seen with this network.
 		"""
-		if client_mac in self.clients.keys():
-			return True
-		else:
-			return False
+		return client_mac in self.clients.keys()
 	
 	def getClient(self, client_mac):
 		"""
@@ -148,7 +161,7 @@ class WirelessNetwork:
 					if the_cheese_stands_alone:
 						output += '\tWPS Information:\n'
 						the_cheese_stands_alone = False
-					output += '\t\t' + piece + ': ' + self.wpsData[piece] + '\n'
+					output += '\t\t' + piece + ': ' + self.wpsData[piece] + '\n' # pylint: disable=unsubscriptable-object
 		if self.clients:
 			output += '\tClient Data:\n'
 			i = 1
@@ -174,7 +187,6 @@ class WirelessNetwork:
 					output += '\n\t\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
 				for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
 					output += '\n\t\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
-				key_size = (cert.get_pubkey().size()) * 8
 				del data
 				output += '\n'
 				i += 1
@@ -206,12 +218,12 @@ class WirelessNetwork:
 			for info in ['manufacturer', 'model name', 'model number', 'device name']:
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
-					tmp.text = self.wpsData[info]
+					tmp.text = self.wpsData[info] # pylint: disable=unsubscriptable-object
 			for info in ['uuid', 'registrar nonce', 'enrollee nonce']:	# values that should be base64 encoded
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
 					tmp.set('encoding', 'base64')
-					tmp.text = b64encode(self.wpsData[info])
+					tmp.text = b64encode(self.wpsData[info]) # pylint: disable=unsubscriptable-object
 		for client in self.clients.values():
 			root.append(client.getXML())
 		for cert in self.x509certs:
