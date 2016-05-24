@@ -50,12 +50,9 @@ import sys
 import thread
 
 # project imports
+sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
 from eapeak.parse import CursesEapeakParsingEngine # pylint: disable=no-name-in-module
-try:																	# default to the systems libraries
-	from eapeak.parse import EapeakParsingEngine						# revert to ./lib on fail for development
-except ImportError:
-	sys.path.append(os.path,join(os.path.dirname(__file__), 'lib'))
-	from eapeak.parse import EapeakParsingEngine # pylint: disable=no-name-in-module
+from eapeak.parse import EapeakParsingEngine # pylint: disable=no-name-in-module
 
 # external imports
 try:

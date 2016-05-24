@@ -38,11 +38,12 @@
 # native imports
 import argparse
 import logging
-from os import getuid
+import os
 import sys
-from time import sleep
+import time
 
 # project imports
+sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
 from eapeak.common import checkInterface, setInterfaceChannel
 from eapeak.inject import WirelessStateMachine, WirelessStateMachineEAP
 from eapeak.networks import WirelessNetwork
@@ -148,7 +149,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose=False
 					sys.stdout.flush()
 				errCode = statemachine.connect(essid, rsnInfo)
 				if errCode:
-					sleep(ERROR_SLEEP_TIME)
+					time.sleep(ERROR_SLEEP_TIME)
 					tries += 1
 					continue # try same
 				errCode = statemachine.check_eap_type(eaptype, outer_identity, True)
@@ -167,7 +168,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose=False
 					statemachine.close()
 					break # try next
 				elif errCode == 2:	# unknown error
-					sleep(ERROR_SLEEP_TIME)
+					time.sleep(ERROR_SLEEP_TIME)
 					tries += 1
 					statemachine.close()
 					continue # try same
@@ -204,7 +205,7 @@ def wps_scan(interface, bssid, essid):
 			statemachine = WirelessStateMachineEAP(interface, bssid, RandMAC('00:*:*:*:*:*').__str__(), bssid)
 			errCode = statemachine.connect(essid)
 			if errCode:
-				sleep(ERROR_SLEEP_TIME)
+				time.sleep(ERROR_SLEEP_TIME)
 				tries += 1
 				continue # try same
 			errCode = statemachine.check_eap_type(254, 'WFA-SimpleConfig-Registrar-1-0', True)	# 254 is extended
@@ -216,7 +217,7 @@ def wps_scan(interface, bssid, essid):
 				print(STATUS + 'WPS Is Not Supported')
 				return False
 			elif errCode == 2:	# unknown error
-				sleep(ERROR_SLEEP_TIME)
+				time.sleep(ERROR_SLEEP_TIME)
 				tries += 1
 				statemachine.close()
 				continue # try same
@@ -245,7 +246,7 @@ def check_ap_connection(interface, bssid, essid, quite=True, verbose=False):
 					print('\n' + ERROR + 'Verbose: did not receive a reply to the authentication request')
 				if not quite and verbose and errCode == 3:
 					print('\n' + ERROR + 'Verbose: did not receive a reply to the association request')
-				sleep(ERROR_SLEEP_TIME)
+				time.sleep(ERROR_SLEEP_TIME)
 				if not quite:
 					sys.stdout.write('.')
 					sys.stdout.flush()
@@ -285,7 +286,7 @@ def main():
 	parser.add_argument('--xml', dest='save_xml', action='store_true', default=False, help='export data to xml')
 	options = parser.parse_args()
 
-	if getuid():
+	if os.getuid():
 		print(ERROR + 'Must Be Root To Inject Packets, Now Exiting...')
 		return 2
 
@@ -296,10 +297,10 @@ def main():
 	if not checkInterface(options.iface) in [0, 1]:
 		print(ERROR + 'Invalid Interface, Now Exiting...')
 		return 4
-	
+
 	if options.verbose:
 		print(STATUS + 'Verbose output has been enabled')
-	
+
 	if options.channel:
 		if not 0 < options.channel < 15:
 			print(ERROR + 'Invalid Channel Selected, Must Be Between 1-14')
@@ -316,7 +317,7 @@ def main():
 			return 0
 		wps_scan(options.iface, options.bssid, options.essid)
 		return 0
-		
+
 	if options.scan_all:
 		print(STATUS + 'Scanning All EAP Types, This Could Take A While...')
 		check_range = range(4, 254)
@@ -353,7 +354,7 @@ def main():
 		eapeakParser.BSSIDToSSIDMap[options.bssid] = options.essid
 		eapeakParser.exportXML()
 
-	return 0	
+	return 0
 
 if __name__ == '__main__':
 	main()

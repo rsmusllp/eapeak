@@ -37,10 +37,12 @@
 
 # native imports
 import argparse
-from binascii import unhexlify
+import binascii
+import os
 import sys
 
 # project imports
+sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
 from eapeak.common import checkInterface, setInterfaceChannel
 from eapeak.inject import WirelessStateMachineSoftAPEAP
 from eapeak.parse import EapeakParsingEngine
@@ -75,11 +77,11 @@ def main():
 	parser.add_argument('--xml', dest='save_xml', action='store_true', default=False, help='export data to xml')
 	options = parser.parse_args()
 	del parser
-	
+
 	if not checkInterface(options.iface) in [0, 1]:
 		print(ERROR + 'Invalid Interface, Now Exiting...')
 		return 1
-	
+
 	if options.channel:
 		if not 0 < options.channel < 15:
 			print(ERROR + 'Invalid Channel Selected, Must Be Between 1-14')
@@ -87,7 +89,7 @@ def main():
 		if not setInterfaceChannel(options.iface, options.channel, True):
 			print(ERROR + 'Failed To Set The Selected Channel')
 			return 7
-	
+
 	if options.bssid:
 		bssid = options.bssid
 	else:
@@ -98,7 +100,7 @@ def main():
 	#else:
 	#	softap = WirelessStateMachineSoftAP(options.iface, bssid, options.essid)
 	softap = WirelessStateMachineSoftAPEAP(options.iface, bssid, options.essid)
-	
+
 	for eaptype in options.eap_types:
 		if eaptype.upper() in EAP_TYPES.values():
 			eaptype = str(EAP_TYPES.keys()[EAP_TYPES.values().index(eaptype.upper())])
@@ -109,9 +111,9 @@ def main():
 			print(ERROR + 'Unsupported EAP Type: ' + str(eaptype))
 			return
 
-	if options.mschap_challenge != None:
+	if options.mschap_challenge is not None:
 		try:
-			softap.mschap_challenge = unhexlify(options.mschap_challenge.replace(':', ''))
+			softap.mschap_challenge = binascii.unhexlify(options.mschap_challenge.replace(':', ''))
 		except ValueError:
 			print(ERROR + 'Invalid MSChap Challenge String (Length Must Be 8 Bytes)')
 			return
@@ -119,7 +121,7 @@ def main():
 			print(ERROR + 'Invalid MSChap Challenge String')
 			return
 
-	softap.listen(5, 0.25)	# TODO add broadcast_interval options
+	softap.listen(5, 0.25)  # TODO add broadcast_interval options
 	print("{0}Started EAPwn Soft AP, Version: {1}\n{0}\tESSID: {2}\n{0}\tBSSID: {3}\n{0}\tInterface: {4}\n{0}\tEAP Types: {5}".format(STATUS, __version__, options.essid, bssid, options.iface, ", ".join(EAP_TYPES[x] for x in softap.eap_priorities)))
 	try:
 		while True:
@@ -141,7 +143,7 @@ def main():
 				break
 			except KeyboardInterrupt:
 				pass
-	
+
 	if options.save_xml:
 		print(STATUS + 'Exporting Data To XML...')
 		eapeakParser = EapeakParsingEngine()
