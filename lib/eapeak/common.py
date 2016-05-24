@@ -1,57 +1,111 @@
-"""
-	-*- coding: utf-8 -*-
-	common.py
-	Provided by Package: eapeak
-	
-	Author: Spencer McIntyre <smcintyre [at] securestate [dot] com>
-	
-	Copyright 2011 SecureState
-	
-	This program is free software; you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; either version 2 of the License, or
-	(at your option) any later version.
-	
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-	
-	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-	MA 02110-1301, USA.
+#!/usr/bin/env python
+#
+# -*- coding: utf-8 -*-
+#
+#  lib/eapeak/common.py
+#
+#  Author: Spencer McIntyre (Steiner) <smcintyre [at] securestate [dot] com>
+#
+#  Copyright 2011 SecureState
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
+#    agent0x0
+#    f8lerror
+#    jagar
+#    WhIPsmACK0
+#    Zamboni
+#
+#  Additional Thanks To:
+#    Joshua Wright
+#    Zero_Chaos
+#    Steve Ocepek
 
-"""
-
+# native imports
+from fcntl import ioctl
 from os import listdir
 from os.path import isdir
-from fcntl import ioctl
-from struct import pack, unpack
 from socket import socket, AF_INET, SOCK_DGRAM
+from struct import pack, unpack
+
+# project imports
+
+# external imports
 
 # various #define statments from Kernel Header files
-SIOCSIWFREQ	= 0x8B04
-SIOCGIWFREQ	= 0x8B05
+SIOCSIWFREQ = 0x8B04
+SIOCGIWFREQ = 0x8B05
 SIOCGIFADDR = 0x8915
 
 # from linux/if.h
 IFNAMSIZ = 16
 
 BSSID_SEARCH_RECURSION = 3
-BSSIDPositionMap = { 0:'3', 1:'1', 2:'2', 8:'3', 9:'1', 10:'2' }
-SourcePositionMap = { 0:'2', 1:'2', 2:'3', 8:'2', 9:'2', 10:'3' }
-DestinationPositionMap = { 0:'1', 1:'3', 2:'1', 8:'1', 9:'3', 10:'1' }
-FreqToChanMap = { 	2412:1, 2417:2, 2422:3, 2427:4, 2432:5, 2437:6, 2442:7,
-					2447:8, 2452:9, 2457:10, 2462:11, 2467:12, 2472:13, 2484:14	}
-EXPANDED_EAP_VENDOR_IDS = { 0x137:'Microsoft', 0x372a:'WPS' }
+BSSIDPositionMap = {
+	0: '3',
+	1: '1',
+	2: '2',
+	8: '3',
+	9: '1',
+	10: '2'
+}
+SourcePositionMap = {
+	0: '2',
+	1: '2',
+	2: '3',
+	8: '2',
+	9: '2',
+	10: '3'
+}
+DestinationPositionMap = {
+	0: '1',
+	1: '3',
+	2: '1',
+	8: '1',
+	9: '3',
+	10: '1'
+}
+FreqToChanMap = {
+	2412: 1,
+	2417: 2,
+	2422: 3,
+	2427: 4,
+	2432: 5,
+	2437: 6,
+	2442: 7,
+	2447: 8,
+	2452: 9,
+	2457: 10,
+	2462: 11,
+	2467: 12,
+	2472: 13,
+	2484: 14
+}
+EXPANDED_EAP_VENDOR_IDS = {
+	0x137: 'Microsoft',
+	0x372a: 'WPS'
+}
 
 def getBSSID(packet):
 	"""
 	Returns a BSSID from a Scapy packet object, returns None on failure.
 	"""
 	tmppacket = packet
-	for x in range(0, BSSID_SEARCH_RECURSION):	
+	for _ in range(0, BSSID_SEARCH_RECURSION):
 		if not 'FCfield' in tmppacket.fields:
 			tmppacket = tmppacket.payload
 			continue
@@ -70,7 +124,8 @@ def getSource(packet):
 	None on failure.
 	"""
 	tmppacket = packet
-	for x in range(0, BSSID_SEARCH_RECURSION):	
+	iteration = 0
+	for _ in range(0, BSSID_SEARCH_RECURSION):
 		if not 'FCfield' in tmppacket.fields:
 			tmppacket = tmppacket.payload
 			continue
@@ -89,7 +144,7 @@ def getDestination(packet):
 	returns None on failure.
 	"""
 	tmppacket = packet
-	for x in range(0, BSSID_SEARCH_RECURSION):	
+	for _ in range(0, BSSID_SEARCH_RECURSION):
 		if not 'FCfield' in tmppacket.fields:
 			tmppacket = tmppacket.payload
 			continue
@@ -119,7 +174,7 @@ def checkInterface(ifname):
 		return -2
 	sock = socket(AF_INET, SOCK_DGRAM)
 	try:
-		addr = ioctl(sock.fileno(), SIOCGIFADDR, pack('256s', ifname[:15]))[20:24]
+		ioctl(sock.fileno(), SIOCGIFADDR, pack('256s', ifname[:15]))[20:24]
 	except IOError as err:
 		if err.errno == 99:
 			return 1
@@ -128,7 +183,7 @@ def checkInterface(ifname):
 		return -1
 	return 0
 
-def getInterfaceChannel(ifname, returnFreq = False):
+def getInterfaceChannel(ifname, returnFreq=False):
 	"""
 	This Provides a pythonic interface for querying the channel or
 	frequency that a wireless card is using.  To obtain the value as a
@@ -150,7 +205,7 @@ def getInterfaceChannel(ifname, returnFreq = False):
 	else:
 		return -2
 
-def setInterfaceChannel(ifname, channel, zealous = False):
+def setInterfaceChannel(ifname, channel, zealous=False):
 	"""
 	This provides a pythonic interface for changing the the channel on a
 	wireless interface.  In addition to configuring the wireless card
@@ -176,11 +231,11 @@ def setInterfaceChannel(ifname, channel, zealous = False):
 			interfaces.remove(ifname)
 		interfaces.insert(0, ifname)
 	else:
-		interfaces = [ ifname ]
+		interfaces = [ifname]
 	for ifname in interfaces:
 		try:
 			result = ioctl(sock.fileno(), SIOCSIWFREQ, pack(packstr, ifname, channel))
-		except IOError as err:
+		except IOError:
 			return False
 		result = (unpack(packstr, result)[1] == channel and getInterfaceChannel(ifname) == channel)
 		if result or not zealous:
