@@ -22,46 +22,34 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#
-#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
-#    agent0x0
-#    f8lerror
-#    jagar
-#    WhIPsmACK0
-#    Zamboni
-#
-#  Additional Thanks To:
-#    Joshua Wright
-#    Zero_Chaos
-#    Steve Ocepek
 
-# native imports
-from base64 import standard_b64decode as b64decode
-from binascii import unhexlify
+import base64
+import binascii
+import datetime
+import os
+import sys
+import signal
+import struct
+import time
+from xml.dom import minidom
+from xml.etree import ElementTree
+from M2Crypto import X509
+
+from scapy.utils import PcapReader
+from scapy.layers.l2 import eap_types as EAP_TYPES
+import scapy.packet
+import scapy.layers.all
+from scapy.sendrecv import sniff
+
+from eapeak.common import getBSSID, getSource, getDestination, EXPANDED_EAP_VENDOR_IDS
+import eapeak.networks
+import eapeak.clients
+
 try:
 	import curses
 	CURSES_CAPABLE = True
 except ImportError:
 	CURSES_CAPABLE = False
-from datetime import datetime
-import os
-from struct import pack, unpack
-import sys
-from time import sleep
-from xml.dom import minidom
-from xml.etree import ElementTree
-
-# project imports
-import eapeak.clients
-from eapeak.common import getBSSID, getSource, getDestination, EXPANDED_EAP_VENDOR_IDS
-import eapeak.networks
-
-# external imports
-from M2Crypto import X509
-from scapy.layers.l2 import eap_types as EAP_TYPES
-from scapy.layers.l2 import EAP, LEAP, EAP_Expanded
-from scapy.layers.ssl import TLSv1Certificate
-from scapy.utils import PcapReader
 
 # TODO: remove clients with an eap identity of eapscan because they're probably us.
 
@@ -85,7 +73,7 @@ USER_MARKER = '=> '
 USER_MARKER_OFFSET = 8
 SSID_MAX_LENGTH = 32
 EAP_TYPES[0] = 'NONE'
-	
+
 def mergeWirelessNetworks(source, destination):
 	"""
 	Merge information about two wireless networks, used to preserve
@@ -93,13 +81,13 @@ def mergeWirelessNetworks(source, destination):
 	"""
 	for bssid in source.bssids:
 		destination.addBSSID(bssid)
-	
+
 	for clientobj in source.clients.values():
 		destination.addClient(clientobj)
-		
+
 	for eaptype in source.eapTypes:
 		destination.addEapType(eaptype)
-		
+
 	for cert in source.x509certs:
 		destination.addCertificate(cert)
 	return destination
@@ -109,27 +97,27 @@ class wpsDataHolder(dict):
 	This wraps a dictionary and a few key methods to allow types to be
 	retreived from either their numerical cylon value or thier alphabetical
 	human value
-	
+
 	Keys are not case sensitive because I like it that way.
 	"""
 	__h_to_c__ = {
-		'authentication type flags':0x1004,
-		'authenticator':0x1005,
-		'configuration error':0x1009,
-		'encryption type flags':0x1010,
-		'device name':0x1011, 
-		'encrypted settings':0x1018,
-		'enrollee nonce':0x101a,
-		'manufacturer':0x1021,
-		'message type':0x1022,
-		'model name':0x1023,
-		'model number':0x1024,
-		'os version':0x102d,
-		'registrar nonce':0x1039,
-		'uuid':0x1048,
-		'version':0x104a,
+		'authentication type flags': 0x1004,
+		'authenticator': 0x1005,
+		'configuration error': 0x1009,
+		'encryption type flags': 0x1010,
+		'device name': 0x1011,
+		'encrypted settings': 0x1018,
+		'enrollee nonce': 0x101a,
+		'manufacturer': 0x1021,
+		'message type': 0x1022,
+		'model name': 0x1023,
+		'model number': 0x1024,
+		'os version': 0x102d,
+		'registrar nonce': 0x1039,
+		'uuid': 0x1048,
+		'version': 0x104a,
 	}
-	
+
 	def __getitem__(self, index):
 		if isinstance(index, str):
 			if index.lower() in self.__h_to_c__:
@@ -145,7 +133,7 @@ class wpsDataHolder(dict):
 			else:
 				raise KeyError(name)
 		return dict.__setitem__(self, name, value)
-	
+
 	def get(self, item):
 		if isinstance(item, str):
 			if item.lower() in self.__h_to_c__:
@@ -161,7 +149,7 @@ class wpsDataHolder(dict):
 			else:
 				return False
 		return dict.has_key(self, item)
-	
+
 	def keys(self):
 		keys = dict.keys(self)
 		new_keys = []
@@ -179,8 +167,8 @@ def parseWPSData(wpsdata, trimStrings=True):
 	while wpsdata:
 		if len(wpsdata) < 4:
 			raise Exception('invalid/corrupted WPS data')
-		_type = unpack('>H', wpsdata[:2])[0]
-		length = unpack('>H', wpsdata[2:4])[0]
+		_type = struct.unpack('>H', wpsdata[:2])[0]
+		length = struct.unpack('>H', wpsdata[2:4])[0]
 		if len(wpsdata) < (length + 4):
 			raise Exception('invalid/corrupted WPS data')
 		value = wpsdata[4:(4 + length)]
@@ -198,20 +186,20 @@ def parseRSNData(rsndata):
 	Tag Number and Tag length are removed
 	"""
 	rsn = {}
-	rsn['version'] = unpack('<H', rsndata[:2])[0]
+	rsn['version'] = struct.unpack('<H', rsndata[:2])[0]
 	rsn['grp_cipher'] = rsndata[2:6]
-	
+
 	pair_ciphers = []
-	nbr_pair_cipher = unpack('<H', rsndata[6:8])[0]
+	nbr_pair_cipher = struct.unpack('<H', rsndata[6:8])[0]
 	rsndata = rsndata[8:]
 	while nbr_pair_cipher and len(rsndata):
 		pair_ciphers.append(rsndata[:4])
 		rsndata = rsndata[4:]
 		nbr_pair_cipher -= 1
 	rsn['pair_ciphers'] = pair_ciphers
-	
+
 	auth_key_mgmt = []
-	nbr_auth_key_mgmt = unpack('<H', rsndata[:2])[0]
+	nbr_auth_key_mgmt = struct.unpack('<H', rsndata[:2])[0]
 	rsndata = rsndata[2:]
 	while nbr_auth_key_mgmt and len(rsndata):
 		auth_key_mgmt.append(rsndata[:4])
@@ -223,19 +211,19 @@ def parseRSNData(rsndata):
 
 def buildRSNData(rsn):
 	version = rsn.get('version') or 1
-	rsndata = pack('<H', version)
+	rsndata = struct.pack('<H', version)
 	rsndata += rsn['grp_cipher']
-	rsndata += pack('<H', 1)
+	rsndata += struct.pack('<H', 1)
 	rsndata += rsn['pair_ciphers'][0]
-	rsndata += pack('<H', 1)
+	rsndata += struct.pack('<H', 1)
 	rsndata += rsn['auth_key_mgmts'][0]
 	rsndata += rsn.get('capabilities') or '\x00\x00'
 	return rsndata
-	
+
 class EapeakParsingEngine:
 	"""
 	This is the main parsing engine that manages all of the networks.
-	
+
 	Notable attributes:
 	KnownNetworks: holds wireless network objects, indexed by SSID if available, BSSID if orphaned
 	BSSIDToSSIDMap: holds SSIDs, indexed by BSSIDS, so you can obtain network objects by BSSID
@@ -250,12 +238,12 @@ class EapeakParsingEngine:
 		self.targetSSIDs = targetSSIDs
 		self.packetCounter = 0
 		self.fragment_buffer = {}							# holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
-		
+
 	def parseLiveCapture(self, packet, quite=True):
 		"""
 		Function is meant to be passed to Scapy's sniff() function similar to:
 		lambda packet: eapeakParser.parseLiveCapture(packet, use_curses)
-		
+
 		sniff(iface = 'mon0', prn = lambda packet: eapeakParser.parseLiveCapture(packet, False) )
 		"""
 		self.parseWirelessPacket(packet)
@@ -263,7 +251,7 @@ class EapeakParsingEngine:
 			return
 		sys.stdout.write('Packets: ' + str(self.packetCounter) + ' Wireless Networks: ' + str(len(self.KnownNetworks)) + '\r')
 		sys.stdout.flush()
-		
+
 	def parsePCapFiles(self, pcapFiles, quite=True):
 		"""
 		Take one more more (list, or tuple) of pcap files and parse them
@@ -294,7 +282,7 @@ class EapeakParsingEngine:
 			packet = pcapr.read_packet()
 			i = 1
 			try:
-				while packet != None:
+				while packet:
 					if not quite:
 						sys.stdout.write('Parsing File: ' + pcap + ' Packets Done: ' + str(i) + '\r')
 						sys.stdout.flush()
@@ -316,7 +304,7 @@ class EapeakParsingEngine:
 					sys.stdout.flush()
 			self.fragment_buffer = {}
 			pcapr.close()
-			
+
 	def parseXMLFiles(self, xmlFiles, quite=True):
 		"""
 		Load EAPeak/Kismet style XML files for information.  This is
@@ -382,14 +370,14 @@ class EapeakParsingEngine:
 						value = elem.text.strip()
 						encoding = elem.get('encoding')
 						if encoding == 'hex':
-							wpsData[key] = unhexlify(value)
+							wpsData[key] = binascii.a2b_hex(value)
 						elif encoding == 'base64':
-							wpsData[key] = b64decode(value)
+							wpsData[key] = base64.standard_b64decode(value)
 						else:
 							wpsData[key] = value
 					if len(wpsData):
 						newNetwork.wpsData = wpsData
-							
+
 				for client in network.findall('wireless-client'):
 					bssid = client.find('client-bssid')
 					if ElementTree.iselement(bssid):
@@ -414,8 +402,8 @@ class EapeakParsingEngine:
 					for mschap in mschaps:
 						newClient.addMSChapInfo(
 							int(mschap.get('eap-type')),
-							unhexlify(mschap.find('challenge').text.strip().replace(':', '')),
-							unhexlify(mschap.find('response').text.strip().replace(':', '')),
+							binascii.a2b_hex(mschap.find('challenge').text.strip().replace(':', '')),
+							binascii.a2b_hex(mschap.find('response').text.strip().replace(':', '')),
 							mschap.get('identity')
 						)
 					wpsXMLData = client.find('wps-data')
@@ -426,9 +414,9 @@ class EapeakParsingEngine:
 							value = elem.text.strip()
 							encoding = elem.get('encoding')
 							if encoding == 'hex':
-								wpsData[key] = unhexlify(value)
+								wpsData[key] = binascii.a2b_hex(value)
 							elif encoding == 'base64':
-								wpsData[key] = b64decode(value)
+								wpsData[key] = base64.standard_b64decode(value)
 							else:
 								wpsData[key] = value
 						if len(wpsData):
@@ -436,9 +424,9 @@ class EapeakParsingEngine:
 					newNetwork.addClient(newClient)
 				for cert in network.findall('certificate'):
 					if cert.get('encoding') == 'DER':
-						newNetwork.addCertificate(X509.load_cert_string(b64decode(cert.text.strip()), X509.FORMAT_DER))
+						newNetwork.addCertificate(X509.load_cert_string(base64.standard_b64decode(cert.text.strip()), X509.FORMAT_DER))
 					elif cert.get('encoding') == 'PEM':
-						newNetwork.addCertificate(X509.load_cert_string(b64decode(cert.text.strip()), X509.FORMAT_PEM))
+						newNetwork.addCertificate(X509.load_cert_string(base64.standard_b64decode(cert.text.strip()), X509.FORMAT_PEM))
 				if ssid != UNKNOWN_SSID_NAME:
 					self.KnownNetworks[ssid] = newNetwork
 				else:
@@ -449,7 +437,7 @@ class EapeakParsingEngine:
 #					be associated with the single BSSID.  This problem needs to be addressed and throughly tested.
 			sys.stdout.write(" Done\n")
 			sys.stdout.flush()
-	
+
 	def exportXML(self, filename=XML_FILE_NAME):
 		"""
 		Exports an XML file that can be reimported with the parseXMLFiles
@@ -458,7 +446,7 @@ class EapeakParsingEngine:
 		eapeakXML = ElementTree.Element('detection-run')
 		eapeakXML.set('eapeak-version', __version__)
 		eapeakXML.append(ElementTree.Comment(' Summary: Found ' + str(len(self.KnownNetworks)) + ' Network(s) '))
-		eapeakXML.append(ElementTree.Comment(datetime.now().strftime(' Created %A %m/%d/%Y %H:%M:%S ')))
+		eapeakXML.append(ElementTree.Comment(datetime.datetime.now().strftime(' Created %A %m/%d/%Y %H:%M:%S ')))
 		networks = self.KnownNetworks.keys()
 		if not networks:
 			return
@@ -470,14 +458,14 @@ class EapeakParsingEngine:
 			tmpfile = open(filename, 'w')
 			tmpfile.write(xmldata)
 			tmpfile.close()
-						
+
 	def parseWirelessPacket(self, packet):
 		"""
 		This is the core packet parsing routine.  It takes a Scapy style
 		packet object as an argument.
 		"""
 		if packet.name == 'RadioTap dummy':
-			packet = packet.payload										# offset it so we start with the Dot11 header
+			packet = packet.payload  # offset it so we start with the Dot11 header
 		shouldStop = False
 		self.packetCounter += 1
 		# this section finds SSIDs in Bacons, I don't like this section, but I do like bacon
@@ -486,7 +474,7 @@ class EapeakParsingEngine:
 			for x in range(0, SSID_SEARCH_RECURSION):
 				if 'ID' in tmp.fields and tmp.fields['ID'] == 0 and 'info' in tmp.fields:	# this line verifies that we found an SSID
 					if tmp.fields['info'] == '\x00':
-						break	# null SSIDs are useless
+						break  # null SSIDs are useless
 					if self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs:	# Obi says: These are not the SSIDs you are looking for...
 						break
 					bssid = getBSSID(packet)
@@ -511,7 +499,7 @@ class EapeakParsingEngine:
 						newNetwork = eapeak.networks.WirelessNetwork(ssid)
 						self.BSSIDToSSIDMap[bssid] = ssid
 					newNetwork.addBSSID(bssid)
-					
+
 					self.KnownNetworks[ssid] = newNetwork
 					del bssid, ssid
 					break
@@ -521,7 +509,7 @@ class EapeakParsingEngine:
 			shouldStop = True
 		if shouldStop:
 			return
-				
+
 		# this section extracts useful EAP info
 		cert_layer = None
 		if 'EAP' in packet:
@@ -616,20 +604,20 @@ class EapeakParsingEngine:
 						else:
 							client.wpsData.update(wpsData)
 					except: # pylint: disable=bare-except
-						pass											# data is corrupted
+						pass  # data is corrupted
 			network.addClient(client)
 			if not cert_layer:
 				shouldStop = True
 		if shouldStop:
 			return
-			
+
 		if cert_layer and 'certificate' in cert_layer.fields:
 			cert_data = cert_layer.certificate[3:]
 			tmp_certs = []
 			while cert_data:
 				if len(cert_data) < 4:
 					break								# length and 1 byte are at least 4 bytes
-				tmp_length = unpack('!I', '\x00' + cert_data[:3])[0]
+				tmp_length = struct.unpack('!I', '\x00' + cert_data[:3])[0]
 				cert_data = cert_data[3:]
 				if len(cert_data) < tmp_length:
 					break						# I smell corruption
@@ -667,7 +655,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			return 1
 		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
 		self.curses_max_columns = size[1] - 2
-		
+
 		self.screen.border(0)
 		self.screen.addstr(2, TAB_LENGTH, 'EAPeak Capturing Live')
 		self.screen.addstr(3, TAB_LENGTH, 'Found 0 Networks')
@@ -684,7 +672,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		self.curses_enabled = True
 		self.curses_lower_refresh_counter = 1
 		return 0
-		
+
 	def cursesInteractionHandler(self, garbage=None):
 		"""
 		This is a function meant to be run in a seperate thread to
@@ -768,7 +756,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				subwindow.overlay(self.screen)
 				c = subwindow.getch()
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
-			elif c in [101, 69]:		# 101 = ord('e')
+			elif c in [101, 69]:  # 101 = ord('e')
 				usernames = []
 				if self.curses_detailed in self.KnownNetworks:
 					network = self.KnownNetworks[self.curses_detailed]
@@ -796,18 +784,18 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				subwindow.border(0)
 				subwindow.refresh()
 				subwindow.overlay(self.screen)
-				c = subwindow.getch()				
+				c = subwindow.getch()
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 		self.cleanupCurses()
 		return
-					
+
 	def cursesScreenDrawHandler(self, save_to_xml):
 		"""
 		This is a function meant to be run in a seperate thread to
 		handle drawing the curses interface to the screen.
 		"""
 		while self.curses_enabled:
-			sleep(CURSES_REFRESH_FREQUENCY)
+			time.sleep(CURSES_REFRESH_FREQUENCY)
 			if self.curses_lower_refresh_counter == 0:	# used to trigger pauses
 				continue
 			size = self.screen.getmaxyx()
@@ -829,14 +817,14 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			else:
 				self.curses_lower_refresh_counter += 1
 				continue
-			
+
 			messages = []
 			ssids = self.KnownNetworks.keys()
 			if self.curses_detailed and self.curses_detailed in self.KnownNetworks:
 				network = self.KnownNetworks[self.curses_detailed]
 				messages.append((TAB_LENGTH, 'SSID: ' + network.ssid))
 				messages.append(CURSES_LINE_BREAK)
-				
+
 				messages.append((TAB_LENGTH, 'BSSIDs:'))
 				for bssid in network.bssids:
 					messages.append((TAB_DEPTH_2, bssid))
@@ -990,12 +978,12 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				pass
 		self.cleanupCurses()
 		return
-		
+
 	def parseLiveCapture(self, packet, quite=True):
 		"""
 		Function is meant to be passed to Scapy's sniff() function similar to:
 		lambda packet: eapeakParser.parseLiveCapture(packet, use_curses)
-		
+
 		sniff(iface = 'mon0', prn = lambda packet: eapeakParser.parseLiveCapture(packet, False) )
 		"""
 		self.parseWirelessPacket(packet)
@@ -1003,7 +991,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			return
 		sys.stdout.write('Packets: ' + str(self.packetCounter) + ' Wireless Networks: ' + str(len(self.KnownNetworks)) + '\r')
 		sys.stdout.flush()
-				
+
 	def resizeDialog(self):
 		"""
 		This is a dialog to be used to warn the user when a screen
@@ -1026,7 +1014,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
 		self.curses_max_columns = size[1] - 2
 		return True
-		
+
 	def cleanupCurses(self):
 		"""
 		This cleans up the curses interface and resets things back to
