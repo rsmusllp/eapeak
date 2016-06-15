@@ -35,24 +35,32 @@
 #    Zero_Chaos
 #    Steve Ocepek
 
+__version_major__ = '0'
+__version_minor__ = '1'
+__version_build__ = '6'
+__version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
+del __version_major__, __version_minor__, __version_build__
+
+__authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
+
 # native imports
 import argparse
 try:
-	import curses # pylint: disable=unused-import
+	import curses  # pylint: disable=unused-import
 	curses_enabled = True
 except ImportError:
 	curses_enabled = False
 import logging
 import os
 from select import error as select_error
-from socket import error as socketError	# needed for the error
+from socket import error as socketError
 import sys
 import thread
 
 # project imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
-from eapeak.parse import CursesEapeakParsingEngine # pylint: disable=no-name-in-module
-from eapeak.parse import EapeakParsingEngine # pylint: disable=no-name-in-module
+from eapeak.parse import CursesEapeakParsingEngine  # pylint: disable=no-name-in-module
+from eapeak.parse import EapeakParsingEngine  # pylint: disable=no-name-in-module
 
 # external imports
 try:
@@ -64,17 +72,11 @@ except ImportError:
 from scapy.config import conf
 from scapy.sendrecv import sniff
 
-__version_major__ = '0'
-__version_minor__ = '1'
-__version_build__ = '5'
-__version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
-del __version_major__, __version_minor__, __version_build__
 
-__authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
 
 def main():
-	# these edit the load_layers configuration to keep layers we don't need out and consume less memory
 	not_needed_layers = [
+	# This list keeps layers we don't need out and consumes less memory
 		'bluetooth',
 		'cdp',
 		'dhcp',
@@ -118,6 +120,7 @@ def main():
 	parser = argparse.ArgumentParser(description='EAPeak: Analysis tool for EAP enabled wireless networks', conflict_handler='resolve')
 	parser.add_argument('-f', '--file', dest='pcaps', nargs='+', action='store', default=[], help='the path to the PCap file(s)')
 	parser.add_argument('-s', '--ssid', dest='target_ssids', nargs='+', action='store', help='specific SSID(s) to analyze')
+	parser.add_argument('-b', '--bssid', dest='target_bssids', nargs='+', action='store', help='specific BSSID(s) to analyze')
 	parser.add_argument('-l', '--live', dest='capture_live', action='store_true', default=False, help='analyze packets live')
 	if curses_enabled:
 		parser.add_argument('-c', '--curses', dest='use_curses', action='store_true', default=False, help='use the BETA curses interface when capturing live')
@@ -134,6 +137,7 @@ def main():
 	results = parser.parse_args()
 	storedFiles = results.pcaps
 	targetSSIDs = results.target_ssids
+	targetBSSIDs = results.target_bssids
 	capture_live = results.capture_live
 	interface = results.interface
 	if capture_live and curses_enabled:
@@ -167,15 +171,17 @@ def main():
 """)
 	print('Welcome To EAPeak\nVersion: ' + __version__ + '\n')
 	
-	# adjust the scapy logs to make them quiet, a hat tip to Philippe Biondi for setting it up so nicely
+	# Adjust the scapy logs to make them quiet, a hat tip to Philippe Biondi for setting it up so nicely
 	scapy_runtime_log = logging.getLogger("scapy.runtime")
 	scapy_runtime_log.setLevel(logging.ERROR)
 	
 	if use_curses:
+		if targetBSSIDs:
+			print "Sorry, BSSID filtering currently only supported by EAPEAK Parsing Engine"
 		eapeakParser = CursesEapeakParsingEngine(targetSSIDs)
 	else:
-		eapeakParser = EapeakParsingEngine(targetSSIDs)
-	del targetSSIDs
+		eapeakParser = EapeakParsingEngine(targetSSIDs, targetBSSIDs)
+	del targetSSIDs, targetBSSIDs
 	
 	xmlFiles = []
 	pcapFiles = []
@@ -212,7 +218,7 @@ def main():
 			del errCode
 			timeout = 1.5
 			thread.start_new_thread(eapeakParser.cursesInteractionHandler, ())
-			thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, (save_to_xml, ))	# tuples are stupid
+			thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, (save_to_xml, ))
 		else:
 			timeout = None
 		while True:
@@ -238,8 +244,8 @@ def main():
 	
 	if not len(eapeakParser.KnownNetworks):
 		print('Found No Usable Information\nTry Again With A Larger Capture')
-		return 0		# we didn't find anything don't continue
-	elif export_x509:	# I HATE menu driven programs with a passion
+		return 0
+	elif export_x509:
 		networks = eapeakParser.KnownNetworks.keys()
 		networks.sort()
 		certs = {}
@@ -297,14 +303,14 @@ def main():
 			try:
 				cert.save(filename, X509.FORMAT_DER)
 				print('Certificate Successfully Saved To: ' + filename)
-			except: # pylint: disable=bare-except
+			except:  # pylint: disable=bare-except
 				print('There Was An Error Saving The Certificate...')
 		elif export_x509_format in ['pem', 'PEM']:
 			filename = certs.values()[target - 1] + '_cert.pem'
 			try:
 				cert.save(filename, X509.FORMAT_PEM)
 				print('Certificate Successfully Saved To: ' + filename)
-			except: # pylint: disable=bare-except
+			except:  # pylint: disable=bare-except
 				print('There Was An Error Saving The Certificate...')
 		print('Now Exiting...')
 		return 0
@@ -326,6 +332,7 @@ def main():
 		print('')
 
 	return 0
+
 
 if __name__ == '__main__':
 	main()

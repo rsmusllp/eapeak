@@ -22,18 +22,6 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#
-#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
-#    agent0x0
-#    f8lerror
-#    jagar
-#    WhIPsmACK0
-#    Zamboni
-#
-#  Additional Thanks To:
-#    Joshua Wright
-#    Zero_Chaos
-#    Steve Ocepek
 
 # native imports
 from fcntl import ioctl
@@ -41,10 +29,6 @@ from os import listdir
 from os.path import isdir
 from socket import socket, AF_INET, SOCK_DGRAM
 from struct import pack, unpack
-
-# project imports
-
-# external imports
 
 # various #define statments from Kernel Header files
 SIOCSIWFREQ = 0x8B04
@@ -113,9 +97,9 @@ def getBSSID(packet):
 			if tmppacket.fields.has_key('addr' + BSSIDPositionMap[tmppacket.fields['FCfield']]):
 				return tmppacket.fields['addr' + BSSIDPositionMap[tmppacket.fields['FCfield']]]
 			else:
-				return None # something is invalid
+				return None
 		else:
-			return None # somthing is invalid
+			return None
 	return None
 	
 def getSource(packet):
@@ -133,9 +117,9 @@ def getSource(packet):
 			if tmppacket.fields.has_key('addr' + SourcePositionMap[tmppacket.fields['FCfield']]):
 				return tmppacket.fields['addr' + SourcePositionMap[tmppacket.fields['FCfield']]]
 			else:
-				return None # something is invalid
+				return None
 		else:
-			return None # somthing is invalid
+			return None
 	return None
 	
 def getDestination(packet):
@@ -152,9 +136,9 @@ def getDestination(packet):
 			if tmppacket.fields.has_key('addr' + DestinationPositionMap[tmppacket.fields['FCfield']]):
 				return tmppacket.fields['addr' + DestinationPositionMap[tmppacket.fields['FCfield']]]
 			else:
-				return None # something is invalid
+				return None
 		else:
-			return None # somthing is invalid
+			return None
 	return None
 	
 def checkInterface(ifname):
@@ -195,7 +179,7 @@ def getInterfaceChannel(ifname, returnFreq=False):
 	packstr = str(IFNAMSIZ) + 'sh14x'
 	sock = socket(AF_INET, SOCK_DGRAM)
 	try:
-		freq = unpack(packstr, ioctl(sock.fileno(), SIOCGIWFREQ, pack(packstr, ifname, 0)))[1] # this is in MHz
+		freq = unpack(packstr, ioctl(sock.fileno(), SIOCGIWFREQ, pack(packstr, ifname, 0)))[1]  #Freq in MHz
 	except IOError:
 		return -2
 	if returnFreq:
@@ -205,18 +189,18 @@ def getInterfaceChannel(ifname, returnFreq=False):
 	else:
 		return -2
 
-def setInterfaceChannel(ifname, channel, zealous=False):
+def setInterfaceChannel(ifname, channel, airmon_fix=False):
 	"""
 	This provides a pythonic interface for changing the the channel on a
 	wireless interface.  In addition to configuring the wireless card
 	via channel, the user can also specify a frequency in MHz which will
-	be translated to a channel. The zealous option addresses a common
+	be translated to a channel. The airmon_fix option addresses a common
 	problem when using airmon-ng  to configure the monitor interface.
 	This problem occurs when an interface such as mon0 is being used for
 	injection however, the channel must be set on wlan0.
 	Returns True on success, False otherwise.
 	"""
-	if (2411 < channel < 2485) and channel in FreqToChanMap:	# this will allow the channel to be set from a frequency in MHz
+	if (2411 < channel < 2485) and channel in FreqToChanMap:	# This will allow the channel to be set from a frequency in MHz
 		channel = FreqToChanMap[channel]
 	if not 0 < channel < 15:
 		return False
@@ -225,7 +209,7 @@ def setInterfaceChannel(ifname, channel, zealous=False):
 	packstr = str(IFNAMSIZ) + 'sb15x'
 	sock = socket(AF_INET, SOCK_DGRAM)
 	
-	if zealous and isdir('/sys/class/net/' + ifname + '/phy80211/device/net'):
+	if airmon_fix and isdir('/sys/class/net/' + ifname + '/phy80211/device/net'):
 		interfaces = listdir('/sys/class/net/' + ifname + '/phy80211/device/net')
 		if ifname in interfaces:
 			interfaces.remove(ifname)
@@ -238,6 +222,6 @@ def setInterfaceChannel(ifname, channel, zealous=False):
 		except IOError:
 			return False
 		result = (unpack(packstr, result)[1] == channel and getInterfaceChannel(ifname) == channel)
-		if result or not zealous:
+		if result or not airmon_fix:
 			return result
 	return False

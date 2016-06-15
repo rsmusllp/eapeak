@@ -23,6 +23,8 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
+__version__ = '0.1.6'
+
 import base64
 import binascii
 import datetime
@@ -36,10 +38,11 @@ from xml.etree import ElementTree
 from M2Crypto import X509
 
 from scapy.utils import PcapReader
-from scapy.layers.l2 import eap_types as EAP_TYPES
 import scapy.packet
 import scapy.layers.all
+from scapy.layers.l2 import *
 from scapy.sendrecv import sniff
+from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
 
 from eapeak.common import getBSSID, getSource, getDestination, EXPANDED_EAP_VENDOR_IDS
 import eapeak.networks
@@ -53,18 +56,16 @@ except ImportError:
 
 # TODO: remove clients with an eap identity of eapscan because they're probably us.
 
-__version__ = '0.1.5'
-
 # Statics
 UNKNOWN_SSID_NAME = 'UNKNOWN_SSID'
 XML_FILE_NAME = 'eapeak.xml'
 SSID_SEARCH_RECURSION = 5
 CURSES_LINE_BREAK = (0, '')
 CURSES_REFRESH_FREQUENCY = 0.10
-CURSES_LOWER_REFRESH_FREQUENCY = 5	# frequency of CURSES_REFRESH_FREQUENCY, also used for calls to exportXML
-CURSES_MIN_X = 99					# minimum screen size
+CURSES_LOWER_REFRESH_FREQUENCY = 5  #Also used for calls to exportXML
+CURSES_MIN_X = 99
 CURSES_MIN_Y = 25
-TAB_LENGTH = 4						# in spaces
+TAB_LENGTH = 4
 TAB_DEPTH_2 = 2 * TAB_LENGTH
 TAB_DEPTH_3 = 3 * TAB_LENGTH
 TAB_DEPTH_4 = 4 * TAB_LENGTH
@@ -230,14 +231,15 @@ class EapeakParsingEngine:
 	OrphanedBSSIDs: holds BSSIDs that are not associated with a known SSID
 	fragment_buffer: holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
 	"""
-	def __init__(self, targetSSIDs=[]):
-		self.KnownNetworks = {}							# holds wireless network objects, indexed by SSID if available, BSSID if orphaned
-		self.BSSIDToSSIDMap = {}							# holds SSIDs, indexed by BSSIDS, so you can obtain network objects by BSSID
-		self.OrphanedBSSIDs = []							# holds BSSIDs that are not associated with a known SSID
+	def __init__(self, targetSSIDs=[], targetBSSIDs=[]):
+		self.KnownNetworks = {}  # Holds wireless network objects, indexed by SSID if available, BSSID if orphaned
+		self.BSSIDToSSIDMap = {}  # Holds SSIDs, indexed by BSSIDS, so you can obtain network objects by BSSID
+		self.OrphanedBSSIDs = []  # holds BSSIDs that are not associated with a known SSID
 		self.packets = []
 		self.targetSSIDs = targetSSIDs
+		self.targetBSSIDs = targetBSSIDs
 		self.packetCounter = 0
-		self.fragment_buffer = {}							# holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
+		self.fragment_buffer = {}  # Holds buffers (lists), indexed by connection strings (src_mac + ' ' + dst_mac)
 
 	def parseLiveCapture(self, packet, quite=True):
 		"""
@@ -298,7 +300,7 @@ class EapeakParsingEngine:
 				if not quite:
 					sys.stdout.write("Skipping File {0} Due To Ctl+C\n".format(pcap))
 					sys.stdout.flush()
-			except: # pylint: disable=bare-except
+			except:  # pylint: disable=bare-except
 				if not quite:
 					sys.stdout.write("Skipping File {0} Due To Scapy Exception\n".format(pcap))
 					sys.stdout.flush()
@@ -465,36 +467,38 @@ class EapeakParsingEngine:
 		packet object as an argument.
 		"""
 		if packet.name == 'RadioTap dummy':
-			packet = packet.payload  # offset it so we start with the Dot11 header
+			packet = packet.payload  # Offset it so we start with the Dot11 header
 		shouldStop = False
 		self.packetCounter += 1
-		# this section finds SSIDs in Bacons, I don't like this section, but I do like bacon
+		# this section finds SSIDs in Bacons
 		if packet.haslayer('Dot11Beacon') or packet.haslayer('Dot11ProbeResp') or packet.haslayer('Dot11AssoReq'):
 			tmp = packet
 			for x in range(0, SSID_SEARCH_RECURSION):
-				if 'ID' in tmp.fields and tmp.fields['ID'] == 0 and 'info' in tmp.fields:	# this line verifies that we found an SSID
+				if 'ID' in tmp.fields and tmp.fields['ID'] == 0 and 'info' in tmp.fields:  # Verifies that we found an SSID
 					if tmp.fields['info'] == '\x00':
-						break  # null SSIDs are useless
-					if self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs:	# Obi says: These are not the SSIDs you are looking for...
+						break
+					if self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs:  # Obi says: These are not the SSIDs you are looking for...
 						break
 					bssid = getBSSID(packet)
+					if self.targetBSSIDs and bssid not in self.targetBSSIDs:
+						break
 					if not bssid:
 						return
 					ssid = ''.join([c for c in tmp.fields['info'] if ((ord(c) > 31 or ord(c) == 9) and ord(c) < 128)])
 					if not ssid:
 						return
-					if bssid in self.OrphanedBSSIDs:								# if this info is relating to a BSSID that was previously considered to be orphaned
-						newNetwork = self.KnownNetworks[bssid]						# retrieve the old one
-						del self.KnownNetworks[bssid]								# delete the old network's orphaned reference
+					if bssid in self.OrphanedBSSIDs:  # If this info is relating to a BSSID that was previously considered to be orphaned
+						newNetwork = self.KnownNetworks[bssid]  # Retrieve the old one
+						del self.KnownNetworks[bssid]  # Delete the old network's orphaned reference
 						self.OrphanedBSSIDs.remove(bssid)
-						self.BSSIDToSSIDMap[bssid] = ssid							# this changes the map from BSSID -> BSSID (for orphans) to BSSID -> SSID
+						self.BSSIDToSSIDMap[bssid] = ssid  # Changes the map from BSSID -> BSSID (for orphans) to BSSID -> SSID
 						newNetwork.updateSSID(ssid)
 						if ssid in self.KnownNetworks:
 							newNetwork = mergeWirelessNetworks(newNetwork, self.KnownNetworks[ssid])
 					elif bssid in self.BSSIDToSSIDMap:
 						continue
-					elif ssid in self.KnownNetworks:								# this is a BSSID from a probe for an SSID we've seen before
-						newNetwork = self.KnownNetworks[ssid]						# so pick up where we left off by using the curent state of the WirelessNetwork object
+					elif ssid in self.KnownNetworks:  # If this is a BSSID from a probe for an SSID we've seen before
+						newNetwork = self.KnownNetworks[ssid]  # Pick up where we left off by using the curent state of the WirelessNetwork object
 					elif bssid:
 						newNetwork = eapeak.networks.WirelessNetwork(ssid)
 						self.BSSIDToSSIDMap[bssid] = ssid
@@ -510,15 +514,15 @@ class EapeakParsingEngine:
 		if shouldStop:
 			return
 
-		# this section extracts useful EAP info
+		# This section extracts useful EAP info
 		cert_layer = None
 		if 'EAP' in packet:
 			fields = packet.getlayer('EAP').fields
-			if fields['code'] not in [1, 2]:							# don't bother parsing through success and failures just yet.
+			if fields['code'] not in [1, 2]:
 				return
 			eaptype = fields['type']
 			for x in range(1, 4):
-				addr = 'addr' + str(x)									# outputs addr1, addr2, addr3
+				addr = 'addr' + str(x)
 				if not addr in packet.fields:
 					return
 			bssid = getBSSID(packet)
@@ -529,7 +533,7 @@ class EapeakParsingEngine:
 				self.OrphanedBSSIDs.append(bssid)
 				self.KnownNetworks[bssid] = eapeak.networks.WirelessNetwork(UNKNOWN_SSID_NAME)
 				self.KnownNetworks[bssid].addBSSID(bssid)
-			network = self.KnownNetworks[self.BSSIDToSSIDMap[bssid]]				# objects should be returned, network to client should affect the client object as still in the BSSIDMap
+			network = self.KnownNetworks[self.BSSIDToSSIDMap[bssid]]
 			bssid = getBSSID(packet)
 			client_mac = getSource(packet)
 			from_AP = False
@@ -537,7 +541,7 @@ class EapeakParsingEngine:
 				client_mac = getDestination(packet)
 				from_AP = True
 			if not bssid or not client_mac:
-				return																# something went wrong
+				return
 			if network.hasClient(client_mac):
 				client = network.getClient(client_mac)
 			else:
@@ -546,14 +550,14 @@ class EapeakParsingEngine:
 				network.addEapType(eaptype)
 			elif eaptype > 4:
 				client.addEapType(eaptype)
-			elif eaptype == 3 and fields['code'] == 2:								# this parses NAKs and attempts to harvest the desired EAP types, RFC 3748
+			elif eaptype == 3 and fields['code'] == 2:  # Parses NAKs and attempts to harvest the desired EAP types, RFC 3748
 				if 'eap_types' in fields:
 					for eap in fields['eap_types']:
 						client.addEapType(eap)
 					del eap
 			if eaptype == 254 and packet.haslayer(EAP_Expanded):
 				network.addExpandedVendorID(packet.getlayer(EAP_Expanded).vendor_id)
-			if from_AP:													# from here on we look for things based on whether it's to or from the AP
+			if from_AP:
 				if packet.haslayer('LEAP'):
 					leap_fields = packet.getlayer(LEAP).fields
 					if 'data' in leap_fields and len(leap_fields['data']) == 8:
@@ -569,9 +573,9 @@ class EapeakParsingEngine:
 						if conn_string in self.fragment_buffer:
 							self.fragment_buffer[conn_string].append(eap_layer.payload)
 					elif eap_layer.flags == 0 and conn_string in self.fragment_buffer:
-						eap_layer = eap_layer.__class__(''.join([x.do_build() for x in self.fragment_buffer[conn_string]]) + eap_layer.payload.do_build())	# take that people trying to read my code! Spencer 1, you 0.
+						eap_layer = eap_layer.__class__(''.join([x.do_build() for x in self.fragment_buffer[conn_string]]) + eap_layer.payload.do_build())  # Take that people trying to read my code! Spencer 1, you 0.
 						del self.fragment_buffer[conn_string]
-					if eap_layer.haslayer('TLSv1Certificate'):			# at this point, if possible, we should have a fully assembled packet
+					if eap_layer.haslayer('TLSv1Certificate'):  # At this point, if possible, we should have a fully assembled packet
 						cert_layer = eap_layer.getlayer(TLSv1Certificate)
 					del eap_layer, conn_string, frag_flag, len_flag
 				elif packet.haslayer('EAP_Expanded') and packet.getlayer('EAP_Expanded').vendor_type == 1 and packet.haslayer('WPS') and packet.getlayer('WPS').opcode == 4:
@@ -581,7 +585,7 @@ class EapeakParsingEngine:
 							network.wpsData = wpsData
 						else:
 							network.wpsData.update(wpsData)
-					except: # pylint: disable=bare-except
+					except:  # pylint: disable=bare-except
 						pass
 
 			else:
@@ -603,8 +607,8 @@ class EapeakParsingEngine:
 							client.wpsData = wpsData
 						else:
 							client.wpsData.update(wpsData)
-					except: # pylint: disable=bare-except
-						pass  # data is corrupted
+					except:  # pylint: disable=bare-except
+						pass   # Data is corrupted
 			network.addClient(client)
 			if not cert_layer:
 				shouldStop = True
@@ -616,11 +620,11 @@ class EapeakParsingEngine:
 			tmp_certs = []
 			while cert_data:
 				if len(cert_data) < 4:
-					break								# length and 1 byte are at least 4 bytes
+					break  # Length and 1 byte are at least 4 bytes
 				tmp_length = struct.unpack('!I', '\x00' + cert_data[:3])[0]
 				cert_data = cert_data[3:]
 				if len(cert_data) < tmp_length:
-					break						# I smell corruption
+					break  # I smell corruption
 				tmp_certs.append(cert_data[:tmp_length])
 				cert_data = cert_data[tmp_length:]
 			for certificate in tmp_certs:
@@ -642,10 +646,10 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		This initializes the screen for curses useage.  It must be
 		called before Curses can be used.
 		"""
-		self.user_marker_pos = 1							# used with curses
-		self.curses_row_offset = 0							# used for marking the visible rows on the screen to allow scrolling
-		self.curses_row_offset_store = 0					# used for storing the row offset when switching from detailed to non-detailed view modes
-		self.curses_detailed = None							# used with curses
+		self.user_marker_pos = 1  # Used with curses
+		self.curses_row_offset = 0  # Used for marking the visible rows on the screen to allow scrolling
+		self.curses_row_offset_store = 0  # Used for storing the row offset when switching from detailed to non-detailed view modes
+		self.curses_detailed = None  # Used with curses
 		self.screen = curses.initscr()
 		curses.start_color()
 		curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_WHITE)
@@ -653,7 +657,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
 			curses.endwin()
 			return 1
-		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
+		self.curses_max_rows = size[0] - 2  # Minus 2 for the border on the top and bottom
 		self.curses_max_columns = size[1] - 2
 
 		self.screen.border(0)
@@ -665,7 +669,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		try:
 			curses.curs_set(1)
 			curses.curs_set(0)
-		except curses.error:								# ignore exceptions from terminals that don't support setting the cursor's visibility
+		except curses.error:  # Ignore exceptions from terminals that don't support setting the cursor's visibility
 			pass
 		curses.noecho()
 		curses.cbreak()
@@ -687,28 +691,28 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				if not self.resizeDialog():
 					break
 				continue
-			if c in [65, 117, 85] and len(self.KnownNetworks):		# 117 = ord('u')
+			if c in [65, 117, 85] and len(self.KnownNetworks):  # 117 = ord('u')
 				if self.curses_detailed:
 					if self.curses_row_offset > 0:
 						self.curses_row_offset -= 1
-						self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
+						self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY  # Trigger a redraw by adjusting the counter
 				else:
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 					if self.user_marker_pos == 1 and self.curses_row_offset == 0:
-						pass	# ceiling
+						pass  # Ceiling
 					elif self.user_marker_pos == 1 and self.curses_row_offset:
 						self.curses_row_offset -= 1
 						self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
 					else:
 						self.user_marker_pos -= 1
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-			elif c in [66, 100, 68] and len(self.KnownNetworks):	# 100 = ord('d')
+			elif c in [66, 100, 68] and len(self.KnownNetworks):  # 100 = ord('d')
 				if self.curses_detailed:
 					self.curses_row_offset += 1
-					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
+					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY  # Trigger a redraw by adjusting the counter
 				else:
 					if self.user_marker_pos + self.curses_row_offset == len(self.KnownNetworks):
-						continue	# floor
+						continue  # Floor
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, ' ' * len(USER_MARKER))
 					if self.user_marker_pos + USER_MARKER_OFFSET == self.curses_max_rows - 1:
 						self.curses_row_offset += 1
@@ -716,7 +720,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					else:
 						self.user_marker_pos += 1
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
-			elif c in [10, 105, 73]:	# 105 = ord('i')
+			elif c in [10, 105, 73]:  # 105 = ord('i')
 				self.curses_row_offset_store = (self.curses_row_offset_store ^ self.curses_row_offset)
 				self.curses_row_offset = (self.curses_row_offset ^ self.curses_row_offset_store)
 				self.curses_row_offset_store = (self.curses_row_offset_store ^ self.curses_row_offset)
@@ -724,12 +728,12 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					self.curses_detailed = None
 					self.screen.addstr(self.user_marker_pos + USER_MARKER_OFFSET, TAB_LENGTH, USER_MARKER)
 					self.screen.refresh()
-					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
+					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY  # Trigger a redraw by adjusting the counter
 				elif 0 <= (self.user_marker_pos - 1 + self.curses_row_offset) < len(self.KnownNetworks):
 					self.curses_detailed = self.KnownNetworks.keys()[(self.user_marker_pos - 1) + self.curses_row_offset_store]	# self.curses_row_offset_store because we just exchanged the values so the original is here now
 					self.screen.refresh()
-					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
-			elif c in [113, 81]:		# 113 = ord('q')
+					self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY  # Trigger a redraw by adjusting the counter
+			elif c in [113, 81]:  # 113 = ord('q')
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(6, 40, (self.curses_max_rows / 2 - 3), (self.curses_max_columns / 2 - 20))
 				subwindow.erase()
@@ -741,7 +745,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 				if c in [121, 89]:
 					break
 				self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY
-			elif c in [104, 72]:		# 113 = ord('h')
+			elif c in [104, 72]:  # 113 = ord('h')
 				self.curses_lower_refresh_counter = 0
 				subwindow = self.screen.subwin(10, 40, (self.curses_max_rows / 2 - 5), (self.curses_max_columns / 2 - 20))
 				subwindow.erase()
@@ -771,7 +775,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 						filehandle.write("\n".join(usernames) + '\n')
 						filehandle.close()
 						message = 'Successfully Saved'
-					except: # pylint: disable=bare-except
+					except:  # pylint: disable=bare-except
 						message = 'Failed To Save'
 				else:
 					message = 'No ID Strings'
@@ -796,7 +800,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 		"""
 		while self.curses_enabled:
 			time.sleep(CURSES_REFRESH_FREQUENCY)
-			if self.curses_lower_refresh_counter == 0:	# used to trigger pauses
+			if self.curses_lower_refresh_counter == 0:  # used to trigger pauses
 				continue
 			size = self.screen.getmaxyx()
 			if size[0] < CURSES_MIN_Y or size[1] < CURSES_MIN_X:
@@ -804,7 +808,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					break
 				continue
 			self.screen.refresh()
-			self.screen.addstr(2, 4, 'EAPeak Capturing Live')			# this is all static, so don't use the messages queue
+			self.screen.addstr(2, 4, 'EAPeak Capturing Live')  # This is all static, so don't use the messages queue
 			self.screen.addnstr(3, 4, 'Found ' + str(len(self.KnownNetworks)) + ' Networks', 25)
 			self.screen.addnstr(4, 4, "Processed {0} Packets".format(self.packetCounter), 30)
 			self.screen.addstr(6, 4, 'Network Information:')
@@ -930,7 +934,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 						del data
 						i += 1
 						messages.append(CURSES_LINE_BREAK)
-					messages.pop() # trash the trailing line break
+					messages.pop()  # trash the trailing line break
 				# message queue is built, now adjust it to be printed to the screen
 				max_offset = len(messages) - (self.curses_max_rows - 7)
 				if max_offset < 0:
@@ -973,7 +977,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 					self.screen.addnstr(line, message[0], message[1], self.curses_max_columns - message[0])
 					line += 1
 					if line > self.curses_max_rows:
-						break	# fail safe
+						break  # Fail safe
 			except curses.error:
 				pass
 		self.cleanupCurses()
@@ -1007,11 +1011,11 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			if size[0] < 2 or size[1] < 26:
 				return False
 			size = self.screen.getmaxyx()
-			self.screen.refresh() # this has to be here
+			self.screen.refresh()  # This has to be here
 		self.screen.erase()
 		self.screen.refresh()
-		self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY	# trigger a redraw by adjusting the counter
-		self.curses_max_rows = size[0] - 2					# minus 2 for the border on the top and bottom
+		self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY  #Trigger a redraw by adjusting the counter
+		self.curses_max_rows = size[0] - 2  # Minus 2 for the border on the top and bottom
 		self.curses_max_columns = size[1] - 2
 		return True
 
