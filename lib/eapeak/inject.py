@@ -44,7 +44,7 @@ from ipfunc import getHwAddr
 from scapy.layers.dot11 import RadioTap, Dot11, Dot11Beacon, Dot11Elt, Dot11Auth, Dot11AssoReq, Dot11AssoResp, Dot11ProbeReq, Dot11Disas, Dot11QoS, Dot11ProbeResp
 from scapy.layers.l2 import LLC, SNAP, EAPOL
 from eapeak.scapylayers.l2 import LEAP, PEAP, EAP
-from scapy.sendrecv import sniff, sendp, srp1, sr1
+from scapy.sendrecv import sniff, sendp, srp1, sr1, srp
 
 RESPONSE_TIMEOUT = 1.5  # Time to wait for a response
 PRIVACY_NONE = 0
@@ -295,12 +295,13 @@ class WirelessStateMachine:
 			5:"Association Request Received Fail Response"
 		}
 		"""
+		
 		# Dot11 Probe Request (to get authentication information if applicable)
 		self.lastpacket = srp1(RadioTap()/
-				Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__())/
-				Dot11Auth(seqnum=1),
-				iface=self.interface, verbose=False, timeout=self.timeout)
-		if rsnInfo is None:  # None explicitly means go get it, leave it '' to proceed with out it
+			Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.dest_mac)/
+			Dot11Auth(seqnum=1), filter="ether host " + self.dest_mac + " and ether host " + self.source_mac,
+			iface=self.interface, verbose=False, timeout=self.timeout)
+			if rsnInfo is None:  # None explicitly means go get it, leave it '' to proceed with out it
 			rsnInfo = self.getRSNInformation(essid)
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11Auth):
 			return 2
@@ -314,9 +315,8 @@ class WirelessStateMachine:
 				Dot11Elt(ID=0, info=essid)/
 				Dot11Elt(ID=1, info='\x82\x84\x0b\x16\x24\x30\x48\x6c')/
 				Dot11Elt(ID=50, info='\x0c\x12\x18\x60')/
-				rsnInfo,
+				rsnInfo, filter="ether host " + self.dest_mac + " and ether host " + self.source_mac,
 				iface=self.interface, verbose=False, timeout=self.timeout)
-
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11AssoResp):
 			return 3
 		
@@ -447,6 +447,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		self.sequence += 1
 		
 		for i in range(0,EAP_MAX_TRIES):
+			
 			sendp(eap_identity_response, iface=self.interface, verbose=False)
 			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
 			if not self.lastpacket is None:
