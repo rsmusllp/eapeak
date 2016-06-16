@@ -301,7 +301,7 @@ class WirelessStateMachine:
 			Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.dest_mac)/
 			Dot11Auth(seqnum=1), filter="ether host " + self.dest_mac + " and ether host " + self.source_mac,
 			iface=self.interface, verbose=False, timeout=self.timeout)
-			if rsnInfo is None:  # None explicitly means go get it, leave it '' to proceed with out it
+		if rsnInfo is None:  # None explicitly means go get it, leave it '' to proceed with out it
 			rsnInfo = self.getRSNInformation(essid)
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11Auth):
 			return 2
