@@ -43,8 +43,8 @@ from ipfunc import getHwAddr
 # external imports
 from scapy.layers.dot11 import RadioTap, Dot11, Dot11Beacon, Dot11Elt, Dot11Auth, Dot11AssoReq, Dot11AssoResp, Dot11ProbeReq, Dot11Disas, Dot11QoS, Dot11ProbeResp
 from scapy.layers.l2 import LLC, SNAP, EAPOL
-from eapeak.scapylayers.l2 import LEAP, PEAP, EAP
 from scapy.sendrecv import sniff, sendp
+from eapeak.scapylayers.l2 import LEAP, PEAP, EAP
 RESPONSE_TIMEOUT = 1.5  # Time to wait for a response
 PRIVACY_NONE = 0
 PRIVACY_WEP = 1
@@ -347,18 +347,18 @@ class WirelessStateMachine:
 		if not self.connected:
 			return -1
 		sendp(
-				RadioTap()/
-				Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=0, subtype=12)/
-				Dot11Disas(reason=3),
-				iface=self.interface,
-				verbose=False
+			RadioTap()/
+			Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=0, subtype=12)/
+			Dot11Disas(reason=3),
+			iface=self.interface,
+			verbose=False
 		)
 		sendp(
-				RadioTap()/
-				Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=0, subtype=12)/
-				Dot11Disas(reason=3),
-				iface=self.interface,
-				verbose=False
+			RadioTap()/
+			Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=0, subtype=12)/
+			Dot11Disas(reason=3),
+			iface=self.interface,
+			verbose=False
 		)
 		self.connected = False
 		return 0

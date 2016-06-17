@@ -477,14 +477,17 @@ class EapeakParsingEngine:
 				if 'ID' in tmp.fields and tmp.fields['ID'] == 0 and 'info' in tmp.fields:  # Verifies that we found an SSID
 					if tmp.fields['info'] == '\x00':
 						break
-					if self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs:  # Obi says: These are not the SSIDs you are looking for...
-						break
 					bssid = getBSSID(packet)
-					if self.targetBSSIDs and bssid not in self.targetBSSIDs:
+					if (self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs) or (self.targetBSSIDs and bssid not in self.targetBSSIDs):  # Obi says: These are not the SSIDs you are looking for...
 						break
 					if not bssid:
 						return
 					ssid = ''.join([c for c in tmp.fields['info'] if ((ord(c) > 31 or ord(c) == 9) and ord(c) < 128)])
+					if self.targetBSSIDs:
+						if not self.targetSSIDs:
+							self.targetSSIDs = []
+						if ssid not in self.targetSSIDs:
+							self.targetSSIDs.append(ssid)
 					if not ssid:
 						return
 					if bssid in self.OrphanedBSSIDs:  # If this info is relating to a BSSID that was previously considered to be orphaned
