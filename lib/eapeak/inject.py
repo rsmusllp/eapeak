@@ -279,7 +279,22 @@ class WirelessStateMachine:
 			return True
 		self.lastpacket = None
 		return False
-		
+	
+	def __thread_sniff__(self):
+		"""
+		Sniff function used for threading when packet response is too fast for normal 
+		sendp() sniff() syntax
+		"""
+		sniff(iface=self.interface, stop_filter=self.__stopfilter__, timeout=RESPONSE_TIMEOUT)
+	
+	def __thread_sendp__(self, payload):
+		"""
+		Sendp function used for opening thread, sending packets, and closing thread
+		"""
+		quick_sniff = threading.Thread(target=self.__thread_sniff__)
+		quick_sniff.start()
+		sendp(payload, iface=self.interface, verbose=False)
+		quick_sniff.join()
 	def connect(self, essid, rsnInfo=''):
 		"""
 		Connect/Associate with an access point.
@@ -295,16 +310,12 @@ class WirelessStateMachine:
 		"""
 		
 		# Dot11 Probe Request (to get authentication information if applicable)
-		quick_sniff = threading.Thread(target=self.quick_sniff)
-		quick_sniff.start()
-		sendp(
+		payload = (
 			RadioTap()/
 			Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.dest_mac)/
-			Dot11Auth(seqnum=1), 
-			iface=self.interface,
-			verbose=False
+			Dot11Auth(seqnum=1)
 		)
-		quick_sniff.join()
+		self.__thread_sendp__(payload)
 		if rsnInfo is None:  # None explicitly means go get it, leave it '' to proceed with out it
 			rsnInfo = self.getRSNInformation(essid)
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11Auth):
@@ -312,20 +323,16 @@ class WirelessStateMachine:
 		if self.lastpacket.getlayer(Dot11Auth).status != 0:
 			return 4
 		#Dot11 Association Request
-		quick_sniff = threading.Thread(target=self.quick_sniff)
-		quick_sniff.start()
-		sendp(
+		payload = (
 			RadioTap()/
 			Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), subtype=0)/
 			Dot11AssoReq(cap='ESS+short-preamble+short-slot', listen_interval=10)/
 			Dot11Elt(ID=0, info=essid)/
 			Dot11Elt(ID=1, info='\x82\x84\x0b\x16\x24\x30\x48\x6c')/
 			Dot11Elt(ID=50, info='\x0c\x12\x18\x60')/
-			rsnInfo,
-			iface=self.interface,
-			verbose=False
+			rsnInfo
 		)
-		quick_sniff.join()
+		self.__thread_sendp__(payload)
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11AssoResp):
 			return 3
 		if self.lastpacket.getlayer(Dot11AssoResp).status != 0:
@@ -417,13 +424,7 @@ class WirelessStateMachine:
 		sendp(frame, iface=self.interface, verbose=False)
 		self.sequence += 1
 		
-	def quick_sniff(self):
-		"""
-		Sniff function used for threading when packet response is too fast for normal 
-		sendp() sniff() syntax
-		"""
-		sniff(iface=self.interface, stop_filter=self.__stopfilter__, timeout=RESPONSE_TIMEOUT)
-		
+	
 	def shutdown(self):
 		"""
 		Shutdown and disassociate from the AP.
@@ -455,10 +456,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 			self.sequence += 1
 			i = 0
 			for i in range(0, EAP_MAX_TRIES):
-				quick_sniff = threading.Thread(target=self.quick_sniff)
-				quick_sniff.start()
-				sendp(eapol_start_request, iface=self.interface, verbose=False)
-				quick_sniff.join()
+				self.__thread_sendp__(eapol_start_request)
 				if not self.lastpacket is None:
 					if self.lastpacket.haslayer('EAP'):
 						fields = self.lastpacket.getlayer('EAP').fields
@@ -473,10 +471,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		self.sequence += 1
 		
 		for i in range(0, EAP_MAX_TRIES):
-			quick_sniff = threading.Thread(target=self.quick_sniff)
-			quick_sniff.start()
-			sendp(eap_identity_response, iface=self.interface, verbose=False)
-			quick_sniff.join()
+			self.__thread_sendp__(eap_identity_response)
 			if not self.lastpacket is None:
 				if self.lastpacket.haslayer('EAP'):
 					fields = self.lastpacket.getlayer('EAP').fields
@@ -489,10 +484,7 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		if i == 2:
 			return 2
 		for i in range(0, EAP_MAX_TRIES):
-			quick_sniff = threading.Thread(target=self.quick_sniff)
-			quick_sniff.start()
-			sendp(eap_legacy_nak, iface=self.interface, verbose=False)
-			quick_sniff.join()
+			self.__thread_sendp__(eap_legacy_nak)
 			if not self.lastpacket is None:
 				if self.lastpacket.haslayer('EAP'):
 					fields = self.lastpacket.getlayer('EAP').fields
