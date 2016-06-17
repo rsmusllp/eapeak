@@ -22,23 +22,9 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#
-#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
-#    agent0x0
-#    f8lerror
-#    jagar
-#    WhIPsmACK0
-#    Zamboni
-#
-#  Additional Thanks To:
-#    Joshua Wright
-#    Zero_Chaos
-#    Steve Ocepek
 
 # native imports
 from sys import version_info as version
-
-# project imports
 
 # external imports
 from distutils.core import setup
@@ -49,37 +35,34 @@ if version[0] == 2 and version[1] < 7:
 
 setup(
 	name='EAPeak',
-	version='0.1.4',
+	version='0.1.6',
 	description='EAPeak Wireless Analysis Suite',
-	
-	# Author
+
 	author='Spencer McIntyre',
 	author_email='SMcIntyre [at] SecureState [dot] com',
-	
-	# Maintainer
+
 	maintainer='Spencer McIntyre',
 	maintainer_email='SMcIntyre [at] SecureState [dot] com',
-	
+
 	url='http://www.securestate.com/',
 	download_url='http://www.securestate.com/',
-	
+
 	# EAPeak's required packages
 	requires=['scapy', 'M2Crypto'],
-	
+
 	# EAPeak's package data
 	provides=['eapeak'],
-	packages=['eapeak'],
+	packages=['eapeak','eapeak.scapylayers'],
 	package_dir={'': 'lib'},
 	py_modules=py_modules,
 	
-	scripts=['eapeak', 'eapscan', 'eapwn'],
+	scripts=['eapeak', 'eapscan'],
 	data_files=[
 		(
 			'/usr/share/man/man1',
 			[
 				'data/man/eapeak.1.gz',
-				'data/man/eapscan.1.gz',
-				'data/man/eapwn.1.gz'
+				'data/man/eapscan.1.gz'
 			]
 		)
 	]
