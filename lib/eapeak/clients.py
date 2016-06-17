@@ -22,28 +22,14 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#
-#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
-#    agent0x0
-#    f8lerror
-#    jagar
-#    WhIPsmACK0
-#    Zamboni
-#
-#  Additional Thanks To:
-#    Joshua Wright
-#    Zero_Chaos
-#    Steve Ocepek
 
 # native imports
 from base64 import standard_b64encode as b64encode
 from binascii import hexlify
 from xml.sax.saxutils import escape as XMLEscape
 
-# project imports
-
 # external imports
-from scapy.layers.l2 import eap_types as EAP_TYPES
+from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
 
 EAP_TYPES[0] = 'NONE'
 
@@ -53,17 +39,17 @@ class WirelessClient:
 	and BSSID are both unique.
 	"""
 	authenticated = False
-	mac = ''	# this is unique
-	bssid = ''	# this is also unique
+	mac = ''
+	bssid = ''
 	
 	def __init__(self, bssid, mac):
 		self.bssid = bssid
 		self.mac = mac
-		self.identities = {}											# eaptypes keyed by identities (probably won't have more than one or two, but the identities are unique, allowing for multiple usernames)
+		self.identities = {}  # eaptypes keyed by identities (probably won't have more than one or two, but the identities are unique, allowing for multiple usernames)
 		self.eapTypes = []
-		self.datastore = {}												# I love metasploit
-		self.mschap = []												# holds respObj dictionaries, keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
-		self.wpsData = None												# this will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
+		self.datastore = {}
+		self.mschap = []  #Keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
+		self.wpsData = None # This will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
 	
 	def addEapType(self, eaptype):
 		"""
@@ -98,21 +84,21 @@ class WirelessClient:
 			challenge = hexlify(challenge)
 			challenge = ":".join([challenge[y:y+2] for y in range(0, len(challenge), 2)])
 			self.mschap.append({'t':eaptype, 'c':challenge, 'i':identity})
-		if response and len(self.mschap):								# we're adding a response string, make sure we have at least one challenge string
+		if response and len(self.mschap):  # Adding a response string, but checking at least one challenge string exists.
 			response = hexlify(response)
 			response = ":".join([response[y:y+2] for y in range(0, len(response), 2)])
 			for value in self.mschap:
 				if not 'r' in value:
 					continue
-				if response == value['r'] and identity == value['i']:	# we already have this particular identity and response so don't store it again, don't check the challenge because chances are it's legit and should be random, resulting in a different response
-					return												# we should only see this in cases that the attacker is supplying the same challenge everytime, *cough* free radius WPE *cough*
-			respObj = self.mschap[len(self.mschap) - 1]					# get the last response dictionary object
-			if identity and identity != respObj['i']:					# we have a supplied identity but they don't match
+				if response == value['r'] and identity == value['i']:
+					return
+			respObj = self.mschap[len(self.mschap) - 1]  # Get the last response dictionary object
+			if identity and identity != respObj['i']:
 				return 1
-			if not 'r' in respObj:										# make sure we don't over write one (that would be bad)
+			if not 'r' in respObj:
 				respObj['r'] = response
 			else:
-				return 2												# we seem to have received 2 response strings without a challenge in between
+				return 2
 
 	def show(self, tabs=0):
 		"""
@@ -133,26 +119,26 @@ class WirelessClient:
 				else:
 					output += ('\t' * tabs) + '\tEAP Type #' + str(eapType) + '\n'
 		if self.mschap:
-			the_cheese_stands_alone = True
+			output_control = True
 			for respObj in self.mschap:
-				if not 'r' in respObj:									# no response? useless
+				if not 'r' in respObj:  # No response
 					continue
-				if the_cheese_stands_alone:
+				if output_control:
 					output += ('\t' * tabs) + 'MS Chap Challenge & Responses:\n'
-					the_cheese_stands_alone = False
+					output_control = False
 				output += ('\t' * tabs) + '\tEAP Type: ' + EAP_TYPES[respObj['t']]
 				if respObj['i']:
 					output += ', Identity: ' + respObj['i']
 				output += '\n'
 				output += ('\t' * tabs) + '\t\tC: ' + respObj['c'] + '\n' + ('\t' * tabs) + '\t\tR: ' + respObj['r'] + '\n'
 		if self.wpsData:
-			the_cheese_stands_alone = True
+			output_control = True
 			for piece in ['Manufacturer', 'Model Name', 'Model Number', 'Device Name']:
 				if self.wpsData.has_key(piece):
-					if the_cheese_stands_alone:
+					if output_control:
 						output += ('\t' * tabs) + 'WPS Information:\n'
-						the_cheese_stands_alone = False
-					output += ('\t' * tabs) + '\t' + piece + ': ' + self.wpsData[piece] + '\n' # pylint: disable=unsubscriptable-object
+						output_control
+					output += ('\t' * tabs) + '\t' + piece + ': ' + self.wpsData[piece] + '\n'  # pylint: disable=unsubscriptable-object
 		return output.rstrip()
 
 	def getXML(self):
@@ -184,10 +170,10 @@ class WirelessClient:
 			for info in ['manufacturer', 'model name', 'model number', 'device name']:
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
-					tmp.text = self.wpsData[info] # pylint: disable=unsubscriptable-object
-			for info in ['uuid', 'registrar nonce', 'enrollee nonce']:	# values that should be base64 encoded
+					tmp.text = self.wpsData[info]  # pylint: disable=unsubscriptable-object
+			for info in ['uuid', 'registrar nonce', 'enrollee nonce']:  # Values that should be base64 encoded
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
 					tmp.set('encoding', 'base64')
-					tmp.text = b64encode(self.wpsData[info]) # pylint: disable=unsubscriptable-object
+					tmp.text = b64encode(self.wpsData[info])  # pylint: disable=unsubscriptable-object
 		return root

@@ -22,18 +22,6 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#
-#  Shout outs to the SecureState Profiling Team (Thanks Guys!)
-#    agent0x0
-#    f8lerror
-#    jagar
-#    WhIPsmACK0
-#    Zamboni
-#
-#  Additional Thanks To:
-#    Joshua Wright
-#    Zero_Chaos
-#    Steve Ocepek
 
 # native imports
 from base64 import standard_b64encode as b64encode
@@ -44,7 +32,7 @@ from eapeak.common import EXPANDED_EAP_VENDOR_IDS
 
 # external imports
 from M2Crypto import X509
-from scapy.layers.l2 import eap_types as EAP_TYPES
+from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
 
 EAP_TYPES[0] = 'NONE'
 
@@ -56,16 +44,16 @@ class WirelessNetwork:
 	
 	Each network has a unique SSID/ESSID, but can have multiple BSSIDs.
 	"""
-	ssid = ''	# this is unique
+	ssid = ''
 	
 	def __init__(self, ssid, bssid=''):
 		self.bssids = []
-		self.clients = {}	# indexed by client MAC
+		self.clients = {}  # Indexed by client MAC
 		self.eapTypes = []
 		self.expandedVendorIDs = []
 		self.ssid = ssid
-		self.x509certs = []	# list of certificates
-		self.wpsData = None												# this will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
+		self.x509certs = []
+		self.wpsData = None  # This will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
 		
 		if bssid:
 			self.bssids.append(bssid)
@@ -85,7 +73,7 @@ class WirelessNetwork:
 		if not isinstance(certificate, X509.X509):
 			try:
 				certificate = X509.load_cert_string(certificate, X509.FORMAT_DER)
-			except: # pylint: disable=bare-except
+			except:  # pylint: disable=bare-except
 				return 1
 				
 		newFingerprint = certificate.get_fingerprint()
@@ -155,13 +143,13 @@ class WirelessNetwork:
 				else:
 					output += '\t\tVendor ID: ' + str(vendorID) + '\n'
 		if self.wpsData:
-			the_cheese_stands_alone = True
+			output_control = True
 			for piece in ['Manufacturer', 'Model Name', 'Model Number', 'Device Name']:
 				if self.wpsData.has_key(piece):
-					if the_cheese_stands_alone:
+					if output_control:
 						output += '\tWPS Information:\n'
-						the_cheese_stands_alone = False
-					output += '\t\t' + piece + ': ' + self.wpsData[piece] + '\n' # pylint: disable=unsubscriptable-object
+						output_control = False
+					output += '\t\t' + piece + ': ' + self.wpsData[piece] + '\n'  # pylint: disable=unsubscriptable-object
 		if self.clients:
 			output += '\tClient Data:\n'
 			i = 1
@@ -218,12 +206,12 @@ class WirelessNetwork:
 			for info in ['manufacturer', 'model name', 'model number', 'device name']:
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
-					tmp.text = self.wpsData[info] # pylint: disable=unsubscriptable-object
-			for info in ['uuid', 'registrar nonce', 'enrollee nonce']:	# values that should be base64 encoded
+					tmp.text = self.wpsData[info]  # pylint: disable=unsubscriptable-object
+			for info in ['uuid', 'registrar nonce', 'enrollee nonce']:  # Values that should be base64 encoded
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
 					tmp.set('encoding', 'base64')
-					tmp.text = b64encode(self.wpsData[info]) # pylint: disable=unsubscriptable-object
+					tmp.text = b64encode(self.wpsData[info])  # pylint: disable=unsubscriptable-object
 		for client in self.clients.values():
 			root.append(client.getXML())
 		for cert in self.x509certs:
