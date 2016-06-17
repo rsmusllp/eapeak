@@ -160,6 +160,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose=False
 					break  # Try next
 				elif errCode == 1:  # EAP type not supported
 					tries = 0
+					print(STATUS + 'EAP Type: ' + EAP_TYPES.get(eaptype, str(eaptype)) + ' not Supported')
 					statemachine.close()
 					break
 				elif errCode == 2:  # unknown error

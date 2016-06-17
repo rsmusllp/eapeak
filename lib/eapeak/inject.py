@@ -30,8 +30,8 @@ import Queue
 from random import randint
 from struct import pack, unpack
 import threading
-from time import sleep
 import time
+import threading
 
 # project imports
 from eapeak.clients import WirelessClient
@@ -44,8 +44,7 @@ from ipfunc import getHwAddr
 from scapy.layers.dot11 import RadioTap, Dot11, Dot11Beacon, Dot11Elt, Dot11Auth, Dot11AssoReq, Dot11AssoResp, Dot11ProbeReq, Dot11Disas, Dot11QoS, Dot11ProbeResp
 from scapy.layers.l2 import LLC, SNAP, EAPOL
 from eapeak.scapylayers.l2 import LEAP, PEAP, EAP
-from scapy.sendrecv import sniff, sendp, srp1, sr1, srp
-
+from scapy.sendrecv import sniff, sendp
 RESPONSE_TIMEOUT = 1.5  # Time to wait for a response
 PRIVACY_NONE = 0
 PRIVACY_WEP = 1
@@ -275,7 +274,6 @@ class WirelessStateMachine:
 		This is the stop filter for Scapy to be used to check if the
 		packet was sent to this WirelessStateMachine instance.
 		"""
-		
 		if getDestination(packet) == self.source_mac and getBSSID(packet) == self.bssid:  # and real_source == self.dest_mac:
 			self.lastpacket = packet
 			return True
@@ -297,36 +295,45 @@ class WirelessStateMachine:
 		"""
 		
 		# Dot11 Probe Request (to get authentication information if applicable)
-		self.lastpacket = srp1(RadioTap()/
+		quick_sniff = threading.Thread(target=self.quick_sniff)
+		quick_sniff.start()
+		sendp(
+			RadioTap()/
 			Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.dest_mac)/
-			Dot11Auth(seqnum=1), filter="ether host " + self.dest_mac + " and ether host " + self.source_mac,
-			iface=self.interface, verbose=False, timeout=self.timeout)
+			Dot11Auth(seqnum=1), 
+			iface=self.interface,
+			verbose=False
+		)
+		quick_sniff.join()
 		if rsnInfo is None:  # None explicitly means go get it, leave it '' to proceed with out it
 			rsnInfo = self.getRSNInformation(essid)
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11Auth):
 			return 2
 		if self.lastpacket.getlayer(Dot11Auth).status != 0:
 			return 4
-		
 		#Dot11 Association Request
-		self.lastpacket=srp1(RadioTap()/
-				Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), subtype=0)/
-				Dot11AssoReq(cap='ESS+short-preamble+short-slot', listen_interval=10)/
-				Dot11Elt(ID=0, info=essid)/
-				Dot11Elt(ID=1, info='\x82\x84\x0b\x16\x24\x30\x48\x6c')/
-				Dot11Elt(ID=50, info='\x0c\x12\x18\x60')/
-				rsnInfo, filter="ether host " + self.dest_mac + " and ether host " + self.source_mac,
-				iface=self.interface, verbose=False, timeout=self.timeout)
+		quick_sniff = threading.Thread(target=self.quick_sniff)
+		quick_sniff.start()
+		sendp(
+			RadioTap()/
+			Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), subtype=0)/
+			Dot11AssoReq(cap='ESS+short-preamble+short-slot', listen_interval=10)/
+			Dot11Elt(ID=0, info=essid)/
+			Dot11Elt(ID=1, info='\x82\x84\x0b\x16\x24\x30\x48\x6c')/
+			Dot11Elt(ID=50, info='\x0c\x12\x18\x60')/
+			rsnInfo,
+			iface=self.interface,
+			verbose=False
+		)
+		quick_sniff.join()
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11AssoResp):
 			return 3
-		
 		if self.lastpacket.getlayer(Dot11AssoResp).status != 0:
 			return 5
-		
 		self.connected = True
 		self.sequence = 0
 		return 0
-		
+	
 	def close(self):
 		"""
 		Disassociate from the access point,  This does not veify that
@@ -339,24 +346,35 @@ class WirelessStateMachine:
 		"""
 		if not self.connected:
 			return -1
-		sendp(RadioTap()/
+		sendp(
+				RadioTap()/
 				Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=0, subtype=12)/
-				Dot11Disas(reason=3), iface=self.interface, verbose=False)
-		sendp(RadioTap()/
+				Dot11Disas(reason=3),
+				iface=self.interface,
+				verbose=False
+		)
+		sendp(
+				RadioTap()/
 				Dot11(addr1=self.dest_mac, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=0, subtype=12)/
-				Dot11Disas(reason=3), iface=self.interface, verbose=False)
+				Dot11Disas(reason=3),
+				iface=self.interface,
+				verbose=False
+		)
 		self.connected = False
 		return 0
 	
 	def getRSNInformation(self, essid):
 		rsnInfo=None
-		sendp(RadioTap()/
+		sendp(
+			RadioTap()/
 			Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), subtype=4)/
 			Dot11ProbeReq()/
 			Dot11Elt(ID=0, info=essid)/
 			Dot11Elt(ID=1, info='\x82\x84\x0b\x16\x24\x30\x48\x6c')/
 			Dot11Elt(ID=50, info='\x0c\x12\x18\x60'),
-			iface=self.interface, verbose=False)
+			iface=self.interface,
+			verbose=False
+		)
 		self.sequence += 1
 		sniff(iface=self.interface, store=0, timeout=self.timeout, stop_filter=self.__stopfilter__)
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11ProbeResp):
@@ -386,7 +404,7 @@ class WirelessStateMachine:
 			return self.lastpacket
 		else:
 			return None
-		
+	
 	def send(self, data, dot11_type=2, dot11_subtype=8, FCfield=0x02, raw=True):
 		"""
 		Send a frame, if raw, insert the data above the Dot11QoS layer.
@@ -398,6 +416,13 @@ class WirelessStateMachine:
 			frame = frame/Dot11QoS()/data
 		sendp(frame, iface=self.interface, verbose=False)
 		self.sequence += 1
+		
+	def quick_sniff(self):
+		"""
+		Sniff function used for threading when packet response is too fast for normal 
+		sendp() sniff() syntax
+		"""
+		sniff(iface=self.interface, stop_filter=self.__stopfilter__, timeout=RESPONSE_TIMEOUT)
 		
 	def shutdown(self):
 		"""
@@ -412,7 +437,6 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 	This is to keep the EAP functionality seperate so the core State-
 	Machine can be repurposed for other projects.
 	"""
-	
 		
 	def check_eap_type(self,  essid,  eaptype, outer_identity='user', eapol_start=False,rsnInfo=''):
 		"""
@@ -424,15 +448,17 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 			3:"identity rejected"
 		}
 		"""
-		
+
 		eapid = randint(1, 254)
 		if eapol_start:
 			eapol_start_request = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=1)
 			self.sequence += 1
-			i = 0	
-			for i in range(0,EAP_MAX_TRIES):
+			i = 0
+			for i in range(0, EAP_MAX_TRIES):
+				quick_sniff = threading.Thread(target=self.quick_sniff)
+				quick_sniff.start()
 				sendp(eapol_start_request, iface=self.interface, verbose=False)
-				sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+				quick_sniff.join()
 				if not self.lastpacket is None:
 					if self.lastpacket.haslayer('EAP'):
 						fields = self.lastpacket.getlayer('EAP').fields
@@ -446,10 +472,11 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 		eap_legacy_nak = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0, len=6)/EAP(code=2, type=3, id=eapid + 1, eap_types=[eaptype])
 		self.sequence += 1
 		
-		for i in range(0,EAP_MAX_TRIES):
-			
+		for i in range(0, EAP_MAX_TRIES):
+			quick_sniff = threading.Thread(target=self.quick_sniff)
+			quick_sniff.start()
 			sendp(eap_identity_response, iface=self.interface, verbose=False)
-			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+			quick_sniff.join()
 			if not self.lastpacket is None:
 				if self.lastpacket.haslayer('EAP'):
 					fields = self.lastpacket.getlayer('EAP').fields
@@ -461,9 +488,11 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 					break
 		if i == 2:
 			return 2
-		for i in range(0,EAP_MAX_TRIES):
+		for i in range(0, EAP_MAX_TRIES):
+			quick_sniff = threading.Thread(target=self.quick_sniff)
+			quick_sniff.start()
 			sendp(eap_legacy_nak, iface=self.interface, verbose=False)
-			sniff(iface=self.interface, store=0, timeout=RESPONSE_TIMEOUT, stop_filter=self.__stopfilter__)
+			quick_sniff.join()
 			if not self.lastpacket is None:
 				if self.lastpacket.haslayer('EAP'):
 					fields = self.lastpacket.getlayer('EAP').fields
