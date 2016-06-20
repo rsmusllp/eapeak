@@ -293,7 +293,7 @@ class WirelessStateMachine:
 		"""
 		quick_sniff = threading.Thread(target=self.__thread_sniff__)
 		quick_sniff.start()
-		time.sleep(0.075)
+		time.sleep(0.1)
 		sendp(payload, iface=self.interface, verbose=False)
 		quick_sniff.join()
 		
