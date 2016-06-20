@@ -110,7 +110,7 @@ scapy_runtime_log.setLevel(logging.CRITICAL)
 GOOD = '\033[1;32m[+]\033[1;m '
 STATUS = '\033[1;34m[*]\033[1;m '
 ERROR = '\033[1;31m[-]\033[1;m '
-ERROR_SLEEP_TIME = 1  # The time to wait between error and retry
+ERROR_SLEEP_TIME = 1.0  # The time to wait between error and retry
 def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose=False):
 	valid_eap_types = []
 	tries = 0
@@ -265,7 +265,6 @@ def check_ap_connection(interface, bssid, essid, quite=True, verbose=False):
 	return True
 
 def main():
-	start=time.time()
 	parser = argparse.ArgumentParser(description='EAPScan: Actively Enumerate 802.1x Wireless Networks', conflict_handler='resolve')
 	parser.add_argument('-e', '--essid', dest='essid', action='store', required=True, default='', help='target ESSID')
 	parser.add_argument('-b', '--bssid', dest='bssid', action='store', required=True, default='', help='target BSSID')
@@ -347,8 +346,7 @@ def main():
 		eapeakParser.KnownNetworks[options.essid] = newNetwork
 		eapeakParser.BSSIDToSSIDMap[options.bssid] = options.essid
 		eapeakParser.exportXML()
-	end=time.time()
-	print '\n' + str(end-start) + '\n'
+		
 	return 0
 
 if __name__ == '__main__':
