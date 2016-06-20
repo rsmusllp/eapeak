@@ -293,8 +293,10 @@ class WirelessStateMachine:
 		"""
 		quick_sniff = threading.Thread(target=self.__thread_sniff__)
 		quick_sniff.start()
+		time.sleep(0.1)
 		sendp(payload, iface=self.interface, verbose=False)
 		quick_sniff.join()
+		
 	def connect(self, essid, rsnInfo=''):
 		"""
 		Connect/Associate with an access point.

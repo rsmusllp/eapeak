@@ -110,8 +110,7 @@ scapy_runtime_log.setLevel(logging.CRITICAL)
 GOOD = '\033[1;32m[+]\033[1;m '
 STATUS = '\033[1;34m[*]\033[1;m '
 ERROR = '\033[1;31m[-]\033[1;m '
-ERROR_SLEEP_TIME = 1.5  # The time to wait between error and retry
-
+ERROR_SLEEP_TIME = 1.0  # The time to wait between error and retry
 def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose=False):
 	valid_eap_types = []
 	tries = 0
@@ -185,8 +184,6 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose=False
 	except KeyboardInterrupt:
 		print('\n' + STATUS + 'Caught Ctrl+C')
 		return valid_eap_types
-	sys.stdout.write(' ' * len(status_str) + '\n') # Overwrite text indicating checking of EAP type
-	sys.stdout.flush()
 	return valid_eap_types
 
 def wps_scan(interface, bssid, essid):
@@ -286,11 +283,11 @@ def main():
 		print(ERROR + 'Must Be Root To Inject Packets, Now Exiting...')
 		return 2
 
-	if not sanitizeMAC(options.bssid):
+	elif not sanitizeMAC(options.bssid):
 		print(ERROR + 'Invalid MAC Address, Now Exiting...')
 		return 3
 
-	if not checkInterface(options.iface) in [0, 1]:
+	elif not checkInterface(options.iface) in [0, 1]:
 		print(ERROR + 'Invalid Interface, Now Exiting...')
 		return 4
 
@@ -349,7 +346,7 @@ def main():
 		eapeakParser.KnownNetworks[options.essid] = newNetwork
 		eapeakParser.BSSIDToSSIDMap[options.bssid] = options.essid
 		eapeakParser.exportXML()
-
+		
 	return 0
 
 if __name__ == '__main__':
