@@ -84,7 +84,7 @@ EXPANDED_EAP_VENDOR_IDS = {
 	0x372a: 'WPS'
 }
 
-def getBSSID(packet):
+def get_BSSID(packet):
 	"""
 	Returns a BSSID from a Scapy packet object, returns None on failure.
 	"""
@@ -101,14 +101,13 @@ def getBSSID(packet):
 		else:
 			return None
 	return None
-	
-def getSource(packet):
+
+def get_source(packet):
 	"""
 	Returns the source MAC address from a Scapy packet object, returns
 	None on failure.
 	"""
 	tmppacket = packet
-	iteration = 0
 	for _ in range(0, BSSID_SEARCH_RECURSION):
 		if not 'FCfield' in tmppacket.fields:
 			tmppacket = tmppacket.payload
@@ -121,8 +120,8 @@ def getSource(packet):
 		else:
 			return None
 	return None
-	
-def getDestination(packet):
+
+def get_destination(packet):
 	"""
 	Returns the destination MAC address from a Scapy packet object,
 	returns None on failure.
@@ -140,8 +139,8 @@ def getDestination(packet):
 		else:
 			return None
 	return None
-	
-def checkInterface(ifname):
+
+def check_interface(ifname):
 	"""
 	This is a modified function from one I found online to get an IP.
 	Only Linux is supported.
@@ -167,14 +166,14 @@ def checkInterface(ifname):
 		return -1
 	return 0
 
-def getInterfaceChannel(ifname, returnFreq=False):
+def get_interface_channel(ifname, returnFreq=False):
 	"""
 	This Provides a pythonic interface for querying the channel or
 	frequency that a wireless card is using.  To obtain the value as a
 	frequency set returnFreq to True.
 	Returns channel or frequency on success, negative number on error.
 	"""
-	if not checkInterface(ifname) in [0, 1]:
+	if not check_interface(ifname) in [0, 1]:
 		return -1
 	packstr = str(IFNAMSIZ) + 'sh14x'
 	sock = socket(AF_INET, SOCK_DGRAM)
@@ -189,7 +188,7 @@ def getInterfaceChannel(ifname, returnFreq=False):
 	else:
 		return -2
 
-def setInterfaceChannel(ifname, channel, airmon_fix=False):
+def set_interface_channel(ifname, channel, airmon_fix=False):
 	"""
 	This provides a pythonic interface for changing the the channel on a
 	wireless interface.  In addition to configuring the wireless card
@@ -204,11 +203,11 @@ def setInterfaceChannel(ifname, channel, airmon_fix=False):
 		channel = FreqToChanMap[channel]
 	if not 0 < channel < 15:
 		return False
-	if not checkInterface(ifname) in [0, 1]:
+	if not check_interface(ifname) in [0, 1]:
 		return False
 	packstr = str(IFNAMSIZ) + 'sb15x'
 	sock = socket(AF_INET, SOCK_DGRAM)
-	
+
 	if airmon_fix and isdir('/sys/class/net/' + ifname + '/phy80211/device/net'):
 		interfaces = listdir('/sys/class/net/' + ifname + '/phy80211/device/net')
 		if ifname in interfaces:
@@ -221,7 +220,7 @@ def setInterfaceChannel(ifname, channel, airmon_fix=False):
 			result = ioctl(sock.fileno(), SIOCSIWFREQ, pack(packstr, ifname, channel))
 		except IOError:
 			return False
-		result = (unpack(packstr, result)[1] == channel and getInterfaceChannel(ifname) == channel)
+		result = (unpack(packstr, result)[1] == channel and get_interface_channel(ifname) == channel)
 		if result or not airmon_fix:
 			return result
 	return False

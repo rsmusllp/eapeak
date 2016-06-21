@@ -36,9 +36,6 @@
 #    Steve Ocepek
 #    Josh Jacob
 
-__version__ = '0.0.8'
-__authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
-
 # native imports
 import argparse
 import logging
@@ -48,18 +45,19 @@ import time
 
 # project imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
-from eapeak.common import checkInterface, setInterfaceChannel
+from eapeak.common import check_interface, set_interface_channel
 from eapeak.inject import WirelessStateMachine, WirelessStateMachineEAP
 from eapeak.networks import WirelessNetwork
 from eapeak.parse import EapeakParsingEngine
-from ipfunc import sanitizeMAC
 from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
+from ipfunc import sanitizeMAC
 
 # external imports
 from scapy.config import conf
 from scapy.volatile import RandMAC
 
-# TODO: Add verbosity options to display BSSID and Client MAC addresses
+__version__ = '0.0.8'
+__authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
 
 not_needed_layers = [
 	# This list keeps layers we don't need out and consumes less memory
@@ -100,7 +98,7 @@ not_needed_layers = [
 for layer in not_needed_layers:
 	if layer in conf.load_layers:
 		conf.load_layers.remove(layer)
-del layer, not_needed_layers
+del layer, not_needed_layers  # pylint: disable=undefined-loop-variable
 conf.ipv6_enabled = False
 
 EAP_TYPES[0] = 'NONE'
@@ -119,7 +117,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose=False
 		if verbose:
 			sys.stdout.write(STATUS + 'Verbose: using source MAC address: ' + statemachine.source_mac + ' for connections\n')
 			sys.stdout.flush()
-		rsnInfo = statemachine.getRSNInformation(essid)
+		rsnInfo = statemachine.get_rsn_information(essid)
 		if rsnInfo is not None:
 			break
 		tries += 1
@@ -146,7 +144,7 @@ def eap_scan(interface, bssid, essid, check_range, outer_identity, verbose=False
 					time.sleep(ERROR_SLEEP_TIME)
 					tries += 1
 					continue  # Try same again
-				errCode = statemachine.check_eap_type(essid, eaptype, outer_identity, True,  rsnInfo)
+				errCode = statemachine.check_eap_type(essid, eaptype, outer_identity, True, rsnInfo)
 				if errCode == 0:  # Supported EAP type
 					sys.stdout.write((' ' * len(status_str)) + '\r')
 					sys.stdout.flush()
@@ -287,7 +285,7 @@ def main():
 		print(ERROR + 'Invalid MAC Address, Now Exiting...')
 		return 3
 
-	elif not checkInterface(options.iface) in [0, 1]:
+	elif not check_interface(options.iface) in [0, 1]:
 		print(ERROR + 'Invalid Interface, Now Exiting...')
 		return 4
 
@@ -298,7 +296,7 @@ def main():
 		if not 0 < options.channel < 15:
 			print(ERROR + 'Invalid Channel Selected, Must Be Between 1-14')
 			return 6
-		if not setInterfaceChannel(options.iface, options.channel, True):
+		if not set_interface_channel(options.iface, options.channel, True):
 			print(ERROR + 'Failed To Set The Selected Channel')
 			return 7
 
@@ -342,11 +340,11 @@ def main():
 	if options.save_xml:
 		eapeakParser = EapeakParsingEngine()
 		newNetwork = WirelessNetwork(options.essid, options.bssid)
-		[newNetwork.addEapType(x) for x in valid_eap_types]  # pylint: disable=expression-not-assigned
+		[newNetwork.add_eap_type(x) for x in valid_eap_types]  # pylint: disable=expression-not-assigned
 		eapeakParser.KnownNetworks[options.essid] = newNetwork
 		eapeakParser.BSSIDToSSIDMap[options.bssid] = options.essid
-		eapeakParser.exportXML()
-		
+		eapeakParser.export_xml()
+
 	return 0
 
 if __name__ == '__main__':

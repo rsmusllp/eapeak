@@ -23,28 +23,29 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
-__version__ = '0.0.6'
-
 # native imports
 import Queue
 from random import randint
 from struct import pack, unpack
 import threading
 import time
-import threading
-
-# project imports
-from eapeak.clients import WirelessClient
-from eapeak.common import getBSSID, getSource, getDestination
-from eapeak.networks import WirelessNetwork
-from eapeak.parse import UNKNOWN_SSID_NAME, parseRSNData, buildRSNData
-from ipfunc import getHwAddr
 
 # external imports
 from scapy.layers.dot11 import RadioTap, Dot11, Dot11Beacon, Dot11Elt, Dot11Auth, Dot11AssoReq, Dot11AssoResp, Dot11ProbeReq, Dot11Disas, Dot11QoS, Dot11ProbeResp
 from scapy.layers.l2 import LLC, SNAP, EAPOL
 from scapy.sendrecv import sniff, sendp
-from eapeak.scapylayers.l2 import LEAP, PEAP, EAP
+
+# project imports
+from eapeak.common import get_BSSID, get_source, get_destination
+from eapeak.parse import parse_rsn_data, build_rsn_data
+from eapeak.scapylayers.l2 import LEAP, PEAP, EAP #pylint: disable=unused-import
+from ipfunc import getHwAddr
+
+
+
+__version__ = '0.0.6'
+
+
 RESPONSE_TIMEOUT = 1.5  # Time to wait for a response
 PRIVACY_NONE = 0
 PRIVACY_WEP = 1
@@ -69,7 +70,7 @@ class SSIDBroadcaster(threading.Thread):
 		self.bssid = bssid.lower()
 		self.broadcast_interval = 0.15
 		self.channel = "\x06"
-		self.setPrivacy(PRIVACY_NONE)
+		self.set_privacy(PRIVACY_NONE)
 		self.sequence = randint(1200, 2000)
 		self.__shutdown__ = False
 
@@ -85,7 +86,7 @@ class SSIDBroadcaster(threading.Thread):
 			self.sequence += 1
 		SC = (self.sequence - ((self.sequence >> 4) << 4) << 12) + (fragment << 8) + (self.sequence >> 4)
 		return unpack('<H', pack('>H', SC))[0]
-		
+
 	def run(self):
 		"""
 		This is the thread routine that broadcasts the SSID.
@@ -93,28 +94,58 @@ class SSIDBroadcaster(threading.Thread):
 		while not self.__shutdown__:
 			self.beacon.getlayer(Dot11).SC = self.__fixSC__()
 			sendp(self.beacon, iface=self.interface, verbose=False)
-			sleep(self.broadcast_interval)
-			
-	def setPrivacy(self, value):
+			time.sleep(self.broadcast_interval)
+
+	def set_privacy(self, value):
 		"""
 		Configure the privacy settings for None, WEP, and WPA
 		"""
 		if value == PRIVACY_NONE:
-			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=self.essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			self.beacon = (
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/
+				Dot11Beacon(cap='ESS+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info=self.essid)/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=self.channel)/
+				Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID=47, info="\x04")/
+				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			)
 		elif value == PRIVACY_WEP:
-			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=self.essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			self.beacon = (
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/
+				Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info=self.essid)/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=self.channel)/
+				Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID=47, info="\x04")/
+				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			)
 		elif value == PRIVACY_WPA:
-			self.beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=self.essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+			self.beacon = (
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/
+				Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info=self.essid)/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=self.channel)/
+				Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/
+				Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
+				Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+			)
 
-	def sendBeacon(self):
+	def send_beacon(self):
 		"""
 		Convenience function for sending beacons without starting a thread
 		"""
 		self.beacon.getlayer(Dot11).SC = self.__fixSC__()
 		sendp(self.beacon, iface=self.interface, verbose=False)
-	
+
 	@staticmethod
-	def sendBeaconEx(essid, interface, privacy=PRIVACY_NONE, bssid=None, channel=6):
+	def send_beacon_ex(essid, interface, privacy=PRIVACY_NONE, bssid=None, channel=6):
 		"""
 		Convenience function for sending beacons without a thread or creating an instance
 		"""
@@ -122,22 +153,48 @@ class SSIDBroadcaster(threading.Thread):
 			bssid = getHwAddr(interface)
 		channel = chr(channel)
 		sequence = randint(1200, 2000)
-		
+
 		if privacy in [PRIVACY_NONE, 'none', 'NONE']:
-			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			beacon = (
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/
+				Dot11Beacon(cap='ESS+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info=essid)/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID=47, info="\x04")/
+				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			)
 		elif privacy in [PRIVACY_WEP, 'wep', 'WEP']:
-			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			beacon = (
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/
+				Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info=essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID=47, info="\x04")/
+				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			)
 		elif privacy in [PRIVACY_WPA, 'wpa', 'WPA']:
-			beacon = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info=essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+			beacon = (
+				RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/
+				Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info=essid)/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=channel)/
+				Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/
+				Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
+				Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+			)
 		else:
 			raise Exception('Invalid privacy setting')
 		sendp(beacon, iface=interface, verbose=False)
-		
+
 class ClientListener(threading.Thread):
 	"""
 	This object is a thread-friendly listener for Client connection
 	attempts.
-	
+
 	The backlog corresponds to the size of the queue, if the queu is
 	full because the items are not being handled fast enough then new
 	association requests will be dropped and lost.
@@ -155,7 +212,7 @@ class ClientListener(threading.Thread):
 		self.channel = "\x06"
 		self.sequence = randint(1200, 2000)
 		self.__shutdown__ = False
-		
+
 	def __fixSC__(self, fragment=0):
 		"""
 		This is a reserved method to return the sequence number in a way
@@ -168,14 +225,14 @@ class ClientListener(threading.Thread):
 			self.sequence += 1
 		SC = (self.sequence - ((self.sequence >> 4) << 4) << 12) + (fragment << 8) + (self.sequence >> 4) # bit shifts FTW!
 		return unpack('<H', pack('>H', SC))[0]
-		
+
 	def __stopfilter__(self, packet):
 		"""
 		This is the stop filter for Scapy to be used to check if the
 		packet was sent to EAPeak.
 		"""
-		if (packet.haslayer(Dot11Auth) or packet.haslayer(Dot11AssoReq)):
-			if getBSSID(packet) == self.bssid and getSource(packet) != self.bssid:
+		if packet.haslayer(Dot11Auth) or packet.haslayer(Dot11AssoReq):
+			if get_BSSID(packet) == self.bssid and get_source(packet) != self.bssid:
 				self.lastpacket = packet
 				return True
 			return False
@@ -183,18 +240,45 @@ class ClientListener(threading.Thread):
 			self.lastpacket = packet
 			return True
 		return False
-			
-	def setPrivacy(self, value):
+
+	def set_privacy(self, value):
 		"""
 		Configure the privacy settings for None, WEP, and WPA
 		"""
 		if value == PRIVACY_NONE:
-			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info='')/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			self.probe_response_template = (
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/
+				Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info='')/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID=47, info="\x04")/
+				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			)
 		elif value == PRIVACY_WEP:
-			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+short-preamble+short-slot')/Dot11Elt(ID="SSID", info='')/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			self.probe_response_template = (
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/
+				Dot11ProbeResp(cap='ESS+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info='')/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+			)
 		elif value == PRIVACY_WPA:
-			self.probe_response_template = RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/Dot11Elt(ID="SSID", info='')/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
-		
+			self.probe_response_template = (
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=self.bssid, addr3=self.bssid)/
+				Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/
+				Dot11Elt(ID="SSID", info='')/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=self.channel)/
+				Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/
+				Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
+				Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
+			)
+
 	def run(self):
 		"""
 		This is the thread routine that handles probe requests and sends
@@ -216,12 +300,12 @@ class ClientListener(threading.Thread):
 					elif ssid == '' and self.essid:
 						ssid = self.essid
 					if self.essid is None or self.essid == ssid:
-						self.probe_response_template.getlayer(Dot11).addr1 = getSource(self.lastpacket)
+						self.probe_response_template.getlayer(Dot11).addr1 = get_source(self.lastpacket)
 						self.probe_response_template.getlayer(Dot11Elt).info = ssid
 						sendp(self.probe_response_template, iface=self.interface, verbose=False)
 					self.lastpacket = None
 					continue
-				clientMAC = getSource(self.lastpacket)
+				clientMAC = get_source(self.lastpacket)
 				if not self.client_queue.full():
 					self.client_queue.put(clientMAC, False)
 				self.lastpacket = None
@@ -231,7 +315,7 @@ class WirelessStateMachine:
 	"""
 	This provides a psuedo-socket like object that provides a stack for
 	Dot11 communications using Scapy.
-	
+
 	Remember:
 	States Are For Smashing
 	"""
@@ -245,21 +329,21 @@ class WirelessStateMachine:
 		if not dest_mac:
 			dest_mac = bssid
 		self.interface = interface
-		
+
 		self.bssid = bssid.lower()
 		self.source_mac = source_mac.lower()
 		self.dest_mac = dest_mac.lower()
-		
+
 		self.connected = False  # connected / associated
 		self.__shutdown__ = False
 		self.sequence = randint(1200, 2000)
 		self.lastpacket = None
 		self.timeout = RESPONSE_TIMEOUT
-		
+
 	def __del__(self):
 		self.shutdown()
 		self.close()
-	
+
 	def __fixSC__(self, fragment=0):
 		"""
 		This is a reserved method to return the sequence number in a way
@@ -268,25 +352,24 @@ class WirelessStateMachine:
 		"""
 		SC = (self.sequence - ((self.sequence >> 4) << 4) << 12) + (fragment << 8) + (self.sequence >> 4)
 		return unpack('<H', pack('>H', SC))[0]
-		
+
 	def __stopfilter__(self, packet):
 		"""
 		This is the stop filter for Scapy to be used to check if the
 		packet was sent to this WirelessStateMachine instance.
 		"""
-		if getDestination(packet) == self.source_mac and getBSSID(packet) == self.bssid:  # and real_source == self.dest_mac:
+		if get_destination(packet) == self.source_mac and get_BSSID(packet) == self.bssid:  # and real_source == self.dest_mac:
 			self.lastpacket = packet
 			return True
 		self.lastpacket = None
 		return False
-	
+
 	def __thread_sniff__(self):
 		"""
-		Sniff function used for threading when packet response is too fast for normal 
-		sendp() sniff() syntax
+		Sniff function threaded to start before packets are sent
 		"""
 		sniff(iface=self.interface, stop_filter=self.__stopfilter__, timeout=RESPONSE_TIMEOUT)
-	
+
 	def __thread_sendp__(self, payload):
 		"""
 		Sendp function used for opening thread, sending packets, and closing thread
@@ -296,7 +379,7 @@ class WirelessStateMachine:
 		time.sleep(0.075)
 		sendp(payload, iface=self.interface, verbose=False)
 		quick_sniff.join()
-		
+
 	def connect(self, essid, rsnInfo=''):
 		"""
 		Connect/Associate with an access point.
@@ -310,7 +393,7 @@ class WirelessStateMachine:
 			5:"Association Request Received Fail Response"
 		}
 		"""
-		
+
 		# Dot11 Probe Request (to get authentication information if applicable)
 		payload = (
 			RadioTap()/
@@ -319,7 +402,7 @@ class WirelessStateMachine:
 		)
 		self.__thread_sendp__(payload)
 		if rsnInfo is None:  # None explicitly means go get it, leave it '' to proceed with out it
-			rsnInfo = self.getRSNInformation(essid)
+			rsnInfo = self.get_rsn_information(essid)
 		if self.lastpacket is None or not self.lastpacket.haslayer(Dot11Auth):
 			return 2
 		if self.lastpacket.getlayer(Dot11Auth).status != 0:
@@ -342,7 +425,7 @@ class WirelessStateMachine:
 		self.connected = True
 		self.sequence = 0
 		return 0
-	
+
 	def close(self):
 		"""
 		Disassociate from the access point,  This does not veify that
@@ -371,9 +454,9 @@ class WirelessStateMachine:
 		)
 		self.connected = False
 		return 0
-	
-	def getRSNInformation(self, essid):
-		rsnInfo=None
+
+	def get_rsn_information(self, essid):
+		rsnInfo = None
 		sendp(
 			RadioTap()/
 			Dot11(addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), subtype=4)/
@@ -399,11 +482,11 @@ class WirelessStateMachine:
 		if rsnInfo is None:
 			rsnInfo = ''  # Did not find rsnInfo in probe response.
 		else:
-			rsnInfo = parseRSNData(rsnInfo.info)
-			rsnInfo = buildRSNData(rsnInfo)
+			rsnInfoDict = parse_rsn_data(rsnInfo.info)
+			rsnInfo = build_rsn_data(rsnInfoDict)
 			rsnInfo = '\x30' + chr(len(rsnInfo)) + rsnInfo
 		return rsnInfo
-	
+
 	def recv(self, bufferlen=0):
 		"""
 		Read a frame and return the information above the Dot11 layer.
@@ -413,7 +496,7 @@ class WirelessStateMachine:
 			return self.lastpacket
 		else:
 			return None
-	
+
 	def send(self, data, dot11_type=2, dot11_subtype=8, FCfield=0x02, raw=True):
 		"""
 		Send a frame, if raw, insert the data above the Dot11QoS layer.
@@ -425,8 +508,7 @@ class WirelessStateMachine:
 			frame = frame/Dot11QoS()/data
 		sendp(frame, iface=self.interface, verbose=False)
 		self.sequence += 1
-		
-	
+
 	def shutdown(self):
 		"""
 		Shutdown and disassociate from the AP.
@@ -440,8 +522,8 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 	This is to keep the EAP functionality seperate so the core State-
 	Machine can be repurposed for other projects.
 	"""
-		
-	def check_eap_type(self,  essid,  eaptype, outer_identity='user', eapol_start=False,rsnInfo=''):
+
+	def check_eap_type(self, essid, eaptype, outer_identity='user', eapol_start=False, rsnInfo=''):
 		"""
 		Check that an eaptype is supported.
 		errDict = {
@@ -454,7 +536,14 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 
 		eapid = randint(1, 254)
 		if eapol_start:
-			eapol_start_request = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=1)
+			eapol_start_request = (
+				RadioTap()/
+				Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=2, subtype=8)/
+				Dot11QoS()/
+				LLC(dsap=170, ssap=170, ctrl=3)/
+				SNAP(code=0x888e)/
+				EAPOL(version=1, type=1)
+			)
 			self.sequence += 1
 			i = 0
 			for i in range(0, EAP_MAX_TRIES):
@@ -468,10 +557,26 @@ class WirelessStateMachineEAP(WirelessStateMachine):
 							break
 			if i == 2:
 				return 2
-		eap_identity_response = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0)/EAP(code=2, type=1, id=eapid, identity=outer_identity)
-		eap_legacy_nak = RadioTap()/Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=2, subtype=8)/Dot11QoS()/LLC(dsap=170, ssap=170, ctrl=3)/SNAP(code=0x888e)/EAPOL(version=1, type=0, len=6)/EAP(code=2, type=3, id=eapid + 1, eap_types=[eaptype])
+		eap_identity_response = (
+			RadioTap()/
+			Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=2, subtype=8)/
+			Dot11QoS()/
+			LLC(dsap=170, ssap=170, ctrl=3)/
+			SNAP(code=0x888e)/
+			EAPOL(version=1, type=0)/
+			EAP(code=2, type=1, id=eapid, identity=outer_identity)
+		)
+		eap_legacy_nak = (
+			RadioTap()/
+			Dot11(FCfield=0x01, addr1=self.bssid, addr2=self.source_mac, addr3=self.bssid, SC=self.__fixSC__(), type=2, subtype=8)/
+			Dot11QoS()/
+			LLC(dsap=170, ssap=170, ctrl=3)/
+			SNAP(code=0x888e)/
+			EAPOL(version=1, type=0, len=6)/
+			EAP(code=2, type=3, id=eapid + 1, eap_types=[eaptype])
+		)
 		self.sequence += 1
-		
+
 		for i in range(0, EAP_MAX_TRIES):
 			self.__thread_sendp__(eap_identity_response)
 			if not self.lastpacket is None:

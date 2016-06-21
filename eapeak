@@ -34,16 +34,8 @@
 #    Joshua Wright
 #    Zero_Chaos
 #    Steve Ocepek
-
-__version_major__ = '0'
-__version_minor__ = '1'
-__version_build__ = '6'
-__version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
-del __version_major__, __version_minor__, __version_build__
-
-__authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
-
 # native imports
+
 import argparse
 try:
 	import curses  # pylint: disable=unused-import
@@ -72,51 +64,58 @@ except ImportError:
 from scapy.config import conf
 from scapy.sendrecv import sniff
 
+__version_major__ = '0'
+__version_minor__ = '1'
+__version_build__ = '6'
+__version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
+del __version_major__, __version_minor__, __version_build__
 
+__authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
 
-def main():
-	not_needed_layers = [
+not_needed_layers = [
 	# This list keeps layers we don't need out and consumes less memory
-		'bluetooth',
-		'cdp',
-		'dhcp',
-		'dhcp6',
-		'dns',
-		'eigrp',
-		'hsrp',
-		'inet6',
-		'ir',
-		'isakmp',
-		'l2tp',
-		'llmnr',
-		'mgcp',
-		'mobileip',
-		'netbios',
-		'netflow',
-		'ntp',
-		'ospf',
-		'ppi_cace',
-		'ppi_geotag',
-		'ppi',
-		'ppp',
-		'rip',
-		'rtp',
-		'sctp',
-		'sebek',
-		'skinny',
-		'smb',
-		'snmp',
-		'tftp',
-		'vrrp',
-		'x509'
+	'bluetooth',
+	'cdp',
+	'dhcp',
+	'dhcp6',
+	'dns',
+	'eigrp',
+	'hsrp',
+	'inet6',
+	'ir',
+	'isakmp',
+	'l2tp',
+	'llmnr',
+	'mgcp',
+	'mobileip',
+	'netbios',
+	'netflow',
+	'ntp',
+	'ospf',
+	'ppi_cace',
+	'ppi_geotag',
+	'ppi',
+	'ppp',
+	'rip',
+	'rtp',
+	'sctp',
+	'sebek',
+	'skinny',
+	'smb',
+	'snmp',
+	'tftp',
+	'vrrp',
+	'x509'
 	]
 
-	for layer in not_needed_layers:
-		if layer in conf.load_layers:
-			conf.load_layers.remove(layer)
-	del layer, not_needed_layers
-	conf.ipv6_enabled = False
-	
+for layer in not_needed_layers:
+	if layer in conf.load_layers:
+		conf.load_layers.remove(layer)
+del layer, not_needed_layers  # pylint: disable=undefined-loop-variable
+conf.ipv6_enabled = False
+
+def main():
+
 	parser = argparse.ArgumentParser(description='EAPeak: Analysis tool for EAP enabled wireless networks', conflict_handler='resolve')
 	parser.add_argument('-f', '--file', dest='pcaps', nargs='+', action='store', default=[], help='the path to the PCap file(s)')
 	parser.add_argument('-s', '--ssid', dest='target_ssids', nargs='+', action='store', help='specific SSID(s) to analyze')
@@ -147,18 +146,19 @@ def main():
 	if not capture_live and not storedFiles:
 		parser.print_help()
 		return 0
-		
+
 	save_to_xml = (((not results.dont_save_xml) & results.capture_live) | results.save_xml)
 	export_x509 = results.export_x509
 	export_x509_format = results.export_x509_format
 	del results, parser, cert_opts
-	
+
 	if capture_live and not interface:
 		print('Error: You must specify an interface when using live mode.')
 		return 1
 	if capture_live and os.getuid():
 		print('Error: You must be root when using live mode.')
 		return 1
+	#pylint: disable=anomalous-backslash-in-string
 	print("""
  ________ 
 < eapeak >
@@ -170,19 +170,19 @@ def main():
                 ||     ||
 """)
 	print('Welcome To EAPeak\nVersion: ' + __version__ + '\n')
-	
+
 	# Adjust the scapy logs to make them quiet, a hat tip to Philippe Biondi for setting it up so nicely
 	scapy_runtime_log = logging.getLogger("scapy.runtime")
 	scapy_runtime_log.setLevel(logging.ERROR)
-	
+
 	if use_curses:
 		if targetBSSIDs:
 			print "Sorry, BSSID filtering currently only supported by EAPEAK Parsing Engine"
 		eapeakParser = CursesEapeakParsingEngine(targetSSIDs)
 	else:
-		eapeakParser = EapeakParsingEngine(targetSSIDs, targetBSSIDs)
+		eapeakParser = EapeakParsingEngine(targetSSIDs, targetBSSIDs)  # pylint: disable=redefined-variable-type
 	del targetSSIDs, targetBSSIDs
-	
+
 	xmlFiles = []
 	pcapFiles = []
 	for filename in storedFiles:
@@ -200,37 +200,37 @@ def main():
 				print('Error: Could not read file \'' + filename + '\' (invalid permissions)')
 				continue
 			pcapFiles.append(filename)
-				
+
 	if xmlFiles:
-		eapeakParser.parseXMLFiles(xmlFiles, False)
+		eapeakParser.parse_xml_files(xmlFiles, False)
 	if pcapFiles:
-		eapeakParser.parsePCapFiles(pcapFiles, False)
+		eapeakParser.parse_pcap_files(pcapFiles, False)
 	print('')
 	del pcapFiles, xmlFiles, storedFiles
-	
+
 	if capture_live:
 		print('Begining Live Capture...')
 		if use_curses:
-			errCode = eapeakParser.initCurses()
+			errCode = eapeakParser.init_curses()
 			if errCode:
 				print({1:'Screen must be at least 99x25 for Curses'}[errCode])
 				return 1
 			del errCode
 			timeout = 1.5
-			thread.start_new_thread(eapeakParser.cursesInteractionHandler, ())
-			thread.start_new_thread(eapeakParser.cursesScreenDrawHandler, (save_to_xml, ))
+			thread.start_new_thread(eapeakParser.curses_interaction_handler, ())
+			thread.start_new_thread(eapeakParser.curses_screen_draw_handler, (save_to_xml, ))
 		else:
 			timeout = None
 		while True:
 			try:
-				sniff(iface=interface, store=0, prn=lambda packet: eapeakParser.parseLiveCapture(packet, use_curses), timeout=timeout)
+				sniff(iface=interface, store=0, prn=lambda packet: eapeakParser.parse_live_capture(packet, use_curses), timeout=timeout)
 				if (use_curses and not eapeakParser.curses_enabled) or not use_curses:
 					break
 			except KeyboardInterrupt:
 				break
 			except socketError:
 				if use_curses:
-					eapeakParser.cleanupCurses()
+					eapeakParser.cleanup_curses()
 				print('Error: Invalid Interface')
 				return 0
 			except select_error:
@@ -238,10 +238,10 @@ def main():
 					break
 		del timeout
 		if use_curses:
-			eapeakParser.cleanupCurses()
+			eapeakParser.cleanup_curses()
 		print('\nStopping Live Capture...')
 		print('')
-	
+
 	if not len(eapeakParser.KnownNetworks):
 		print('Found No Usable Information\nTry Again With A Larger Capture')
 		return 0
@@ -297,7 +297,7 @@ def main():
 			print('Now Exiting...')
 			return 0
 		cert = certs.keys()[target - 1]
-		
+
 		if export_x509_format in ['der', 'DER']:
 			filename = certs.values()[target - 1] + '_cert.crt'
 			try:
@@ -316,7 +316,7 @@ def main():
 		return 0
 
 	if save_to_xml:
-		eapeakParser.exportXML()
+		eapeakParser.export_xml()
 	intro0 = 'EAPeak Summary of Wireless Networks'
 	intro1 = 'Found ' + str(len(eapeakParser.KnownNetworks)) + ' Network(s)'
 	intro = '*' * len(intro0) + '****\n'

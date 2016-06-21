@@ -41,7 +41,7 @@ class WirelessClient:
 	authenticated = False
 	mac = ''
 	bssid = ''
-	
+
 	def __init__(self, bssid, mac):
 		self.bssid = bssid
 		self.mac = mac
@@ -50,7 +50,7 @@ class WirelessClient:
 		self.datastore = {}
 		self.mschap = []  #Keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
 		self.wpsData = None # This will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
-	
+
 	def addEapType(self, eaptype):
 		"""
 		Add an eap type to the internal list.
@@ -58,15 +58,15 @@ class WirelessClient:
 		if eaptype not in self.eapTypes and eaptype > 4:
 			self.eapTypes.append(eaptype)
 
-	def addIdentity(self, eaptype, identity):
+	def add_identity(self, eaptype, identity):
 		"""
 		Adds identity strings with their associated EAP type that they
 		were discovered with.
 		"""
 		if not identity in self.identities.keys() and identity:
 			self.identities[identity] = eaptype
-			
-	def addMSChapInfo(self, eaptype, challenge=None, response=None, identity=None):
+
+	def add_MS_chap_info(self, eaptype, challenge=None, response=None, identity=None):
 		"""
 		Adds information to the internal "mschap" list which contains
 		dictionaries for each set with keys of:
@@ -80,7 +80,7 @@ class WirelessClient:
 		if not identity:
 			identity = 'UNKNOWN'
 
-		if challenge:							
+		if challenge:
 			challenge = hexlify(challenge)
 			challenge = ":".join([challenge[y:y+2] for y in range(0, len(challenge), 2)])
 			self.mschap.append({'t':eaptype, 'c':challenge, 'i':identity})
@@ -107,10 +107,10 @@ class WirelessClient:
 		"""
 		output = ('\t' * tabs) + 'MAC: ' + self.mac + '\n'
 		output += ('\t' * tabs) + 'Associated BSSID: ' + self.bssid + '\n'
-		
+
 		if self.identities:
 			output += ('\t' * tabs) + 'Identities:\n\t' + ('\t' * tabs) + ("\n\t" + ('\t' * tabs)).join(self.identities.keys()) + '\n'
-			
+
 		if self.eapTypes:
 			output += ('\t' * tabs) + 'EAP Types:\n'
 			for eapType in self.eapTypes:
@@ -137,11 +137,11 @@ class WirelessClient:
 				if self.wpsData.has_key(piece):
 					if output_control:
 						output += ('\t' * tabs) + 'WPS Information:\n'
-						output_control
+						output_control = False
 					output += ('\t' * tabs) + '\t' + piece + ': ' + self.wpsData[piece] + '\n'  # pylint: disable=unsubscriptable-object
 		return output.rstrip()
 
-	def getXML(self):
+	def get_xml(self):
 		"""
 		This returns the XML representation of the client object.
 		"""
@@ -150,12 +150,12 @@ class WirelessClient:
 		ElementTree.SubElement(root, 'client-mac').text = self.mac
 		ElementTree.SubElement(root, 'client-bssid').text = self.bssid
 		ElementTree.SubElement(root, 'eap-types').text = ",".join([str(i) for i in self.eapTypes])
-		
+
 		for identity, eaptype in self.identities.items():
 			tmp = ElementTree.SubElement(root, 'identity')
 			tmp.set('eap-type', str(eaptype))
 			tmp.text = XMLEscape(identity)
-			
+
 		for respObj in self.mschap:
 			if not 'r' in respObj:
 				continue
@@ -164,7 +164,7 @@ class WirelessClient:
 			tmp.set('identity', XMLEscape(respObj['i']))
 			ElementTree.SubElement(tmp, 'challenge').text = respObj['c']
 			ElementTree.SubElement(tmp, 'response').text = respObj['r']
-		
+
 		if self.wpsData:
 			wps = ElementTree.SubElement(root, 'wps-data')
 			for info in ['manufacturer', 'model name', 'model number', 'device name']:

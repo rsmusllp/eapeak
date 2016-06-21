@@ -23,15 +23,14 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
-__doc__ = 'Distributed as part of CORI, http://sourceforge.net/projects/cori-python/\n\nThis module contains misc. ip related functions.'
-__version__ = '1.8'
-
 # native imports
 from fcntl import ioctl
-from random import randint
-from socket import inet_ntoa, socket, AF_INET, SOCK_DGRAM
+from socket import socket, AF_INET, SOCK_DGRAM
 import struct
 from struct import pack
+
+__doc__ = 'Distributed as part of CORI, http://sourceforge.net/projects/cori-python/\n\nThis module contains misc. ip related functions.'  # pylint: disable=redefined-builtin
+__version__ = '1.8'
 
 numbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
 

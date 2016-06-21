@@ -27,12 +27,14 @@
 from base64 import standard_b64encode as b64encode
 from xml.sax.saxutils import escape as XMLEscape
 
-# project imports
-from eapeak.common import EXPANDED_EAP_VENDOR_IDS
-
 # external imports
 from M2Crypto import X509
 from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
+
+# project imports
+from eapeak.common import EXPANDED_EAP_VENDOR_IDS
+
+
 
 EAP_TYPES[0] = 'NONE'
 
@@ -41,11 +43,11 @@ class WirelessNetwork:
 	This is an object representing a network.  It holds information
 	about a single wireless network including BSSIDs, and Clients (as
 	EAPeak Client Objects.
-	
+
 	Each network has a unique SSID/ESSID, but can have multiple BSSIDs.
 	"""
 	ssid = ''
-	
+
 	def __init__(self, ssid, bssid=''):
 		self.bssids = []
 		self.clients = {}  # Indexed by client MAC
@@ -54,18 +56,18 @@ class WirelessNetwork:
 		self.ssid = ssid
 		self.x509certs = []
 		self.wpsData = None  # This will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
-		
+
 		if bssid:
 			self.bssids.append(bssid)
 
-	def addBSSID(self, bssid):
+	def add_BSSID(self, bssid):
 		"""
 		Add a bssid to be associated with this network.
 		"""
 		if bssid not in self.bssids:
 			self.bssids.append(bssid)
-			
-	def addCertificate(self, certificate):
+
+	def add_certificate(self, certificate):
 		"""
 		Certificates are either packed binary strings in DER format, or
 		instances of m2crypto.X509.X509
@@ -75,15 +77,15 @@ class WirelessNetwork:
 				certificate = X509.load_cert_string(certificate, X509.FORMAT_DER)
 			except:  # pylint: disable=bare-except
 				return 1
-				
+
 		newFingerprint = certificate.get_fingerprint()
 		for oldcert in self.x509certs:
 			if newFingerprint == oldcert.get_fingerprint():
 				return -1
-				
+
 		self.x509certs.append(certificate)
 		return 0
-			
+
 	def addEapType(self, eapType):
 		"""
 		Add an eap type to the internal list.
@@ -91,27 +93,27 @@ class WirelessNetwork:
 		if eapType not in self.eapTypes and eapType not in [1, 3]:
 			self.eapTypes.append(eapType)
 
-	def addExpandedVendorID(self, vendorID):
+	def add_expanded_vendor_id(self, vendorID):
 		"""
 		Add a vendor id from an Expanded EAP frame.
 		"""
 		if vendorID not in self.expandedVendorIDs:
 			self.expandedVendorIDs.append(vendorID)
 
-	def addClient(self, clientobj):
+	def add_client(self, clientobj):
 		"""
 		Add an associated Client Object to the internal list.
 		"""
 		if not clientobj.mac in self.clients.keys():
 			self.clients[clientobj.mac] = clientobj
-			
-	def hasClient(self, client_mac):
+
+	def has_client(self, client_mac):
 		"""
 		Checks that a client has been seen with this network.
 		"""
 		return client_mac in self.clients.keys()
-	
-	def getClient(self, client_mac):
+
+	def get_client(self, client_mac):
 		"""
 		Returns a client associated with the give MAC address.
 		"""
@@ -119,7 +121,7 @@ class WirelessNetwork:
 			return self.clients[client_mac]
 		else:
 			return None
-		
+
 	def show(self):
 		"""
 		This returns a string of human readable information describing
@@ -168,7 +170,7 @@ class WirelessNetwork:
 					output += '\n\t\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
 				for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
 					output += '\n\t\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
-				
+
 				data = cert.get_subject()
 				output += '\n\t\tSubject:'
 				for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
@@ -178,13 +180,13 @@ class WirelessNetwork:
 				del data
 				output += '\n'
 				i += 1
-			del cert
+			del cert #pylint: disable=undefined-loop-variable
 		return output[:-1]
-		
-	def updateSSID(self, ssid):
+
+	def update_SSID(self, ssid):
 		self.ssid = ssid
 
-	def getXML(self):
+	def get_xml(self):
 		"""
 		This returns the XML representation of the client object.
 		"""
@@ -213,7 +215,7 @@ class WirelessNetwork:
 					tmp.set('encoding', 'base64')
 					tmp.text = b64encode(self.wpsData[info])  # pylint: disable=unsubscriptable-object
 		for client in self.clients.values():
-			root.append(client.getXML())
+			root.append(client.get_xml())
 		for cert in self.x509certs:
 			tmp = ElementTree.SubElement(root, 'certificate')
 			tmp.text = b64encode(cert.as_der())

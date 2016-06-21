@@ -52,10 +52,10 @@ setup(
 
 	# EAPeak's package data
 	provides=['eapeak'],
-	packages=['eapeak','eapeak.scapylayers'],
+	packages=['eapeak', 'eapeak.scapylayers'],
 	package_dir={'': 'lib'},
 	py_modules=py_modules,
-	
+
 	scripts=['eapeak', 'eapscan'],
 	data_files=[
 		(
