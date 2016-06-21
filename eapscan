@@ -56,7 +56,6 @@ from ipfunc import sanitizeMAC
 from scapy.config import conf
 from scapy.volatile import RandMAC
 
-__version__ = '0.0.8'
 __authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
 
 not_needed_layers = [
@@ -198,7 +197,7 @@ def wps_scan(interface, bssid, essid):
 			if errCode:
 				time.sleep(ERROR_SLEEP_TIME)
 				tries += 1
-				continue # Try same
+				continue  # Try same
 			errCode = statemachine.check_eap_type(254, 'WFA-SimpleConfig-Registrar-1-0', True)	# 254 is extended
 			if errCode == 0:  # WPS is supported
 				statemachine.close()

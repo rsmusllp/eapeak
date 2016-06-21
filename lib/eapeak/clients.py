@@ -48,7 +48,7 @@ class WirelessClient:
 		self.identities = {}  # eaptypes keyed by identities (probably won't have more than one or two, but the identities are unique, allowing for multiple usernames)
 		self.eapTypes = []
 		self.datastore = {}
-		self.mschap = []  #Keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
+		self.mschap = []  # Keys are 't' for eap type (int), 'c' for challenge (str), 'r' for response (str), 'i' for identity (str)
 		self.wpsData = None # This will be changed to an instance of eapeak.parse.wpsDataHolder or a standard dictionary
 
 	def addEapType(self, eaptype):
@@ -66,7 +66,7 @@ class WirelessClient:
 		if not identity in self.identities.keys() and identity:
 			self.identities[identity] = eaptype
 
-	def add_MS_chap_info(self, eaptype, challenge=None, response=None, identity=None):
+	def add_ms_chap_info(self, eaptype, challenge=None, response=None, identity=None):
 		"""
 		Adds information to the internal "mschap" list which contains
 		dictionaries for each set with keys of:

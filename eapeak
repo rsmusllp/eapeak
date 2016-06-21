@@ -64,11 +64,7 @@ except ImportError:
 from scapy.config import conf
 from scapy.sendrecv import sniff
 
-__version_major__ = '0'
-__version_minor__ = '1'
-__version_build__ = '6'
-__version__ = "{0}.{1}.{2}".format(__version_major__, __version_minor__, __version_build__)
-del __version_major__, __version_minor__, __version_build__
+__version__ = "0.1.6"
 
 __authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
 

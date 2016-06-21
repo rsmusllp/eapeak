@@ -42,18 +42,14 @@ except ImportError:
 from M2Crypto import X509
 
 from scapy.utils import PcapReader
-import scapy.packet #pylint: disable=unused-import
-import scapy.layers.all #pylint: disable=unused-import
+import scapy.packet  # pylint: disable=unused-import
+import scapy.layers.all  # pylint: disable=unused-import
 from scapy.layers.l2 import EAP
 from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
 
-from eapeak.common import get_BSSID, get_source, get_destination, EXPANDED_EAP_VENDOR_IDS
+from eapeak.common import get_bssid, get_source, get_destination, EXPANDED_EAP_VENDOR_IDS
 import eapeak.networks
 import eapeak.clients
-
-
-
-__version__ = '0.1.6'
 
 # Statics
 UNKNOWN_SSID_NAME = 'UNKNOWN_SSID'
@@ -279,7 +275,7 @@ class EapeakParsingEngine:
 					sys.stdout.write("Skipping File {0}: Permissions Issue\n".format(pcap))
 					sys.stdout.flush()
 				continue
-			pcapr = PcapReader(pcap) # pylint: disable=no-value-for-parameter
+			pcapr = PcapReader(pcap)  # pylint: disable=no-value-for-parameter
 			packet = pcapr.read_packet()
 			i = 1
 			try:
@@ -418,7 +414,7 @@ class EapeakParsingEngine:
 				newClient.add_identity(int(tmp), identity.text.strip())
 		mschaps = client.findall('mschap') or []
 		for mschap in mschaps:
-			newClient.add_MS_chap_info(
+			newClient.add_ms_chap_info(
 				int(mschap.get('eap-type')),
 				binascii.a2b_hex(mschap.find('challenge').text.strip().replace(':', '')),
 				binascii.a2b_hex(mschap.find('response').text.strip().replace(':', '')),
@@ -466,13 +462,14 @@ class EapeakParsingEngine:
 			tmpfile = open(filename, 'w')
 			tmpfile.write(xmldata)
 			tmpfile.close()
+
 	def update_maps(self, packet):
 		tmp = packet
 		for x in range(0, SSID_SEARCH_RECURSION):  # pylint: disable=unused-variable
 			if 'ID' in tmp.fields and tmp.fields['ID'] == 0 and 'info' in tmp.fields:  # Verifies that we found an SSID
 				if tmp.fields['info'] == '\x00':
 					break
-				bssid = get_BSSID(packet)
+				bssid = get_bssid(packet)
 				if (self.targetSSIDs and tmp.fields['info'] not in self.targetSSIDs) or (self.targetBSSIDs and bssid not in self.targetBSSIDs):  # Obi says: These are not the SSIDs you are looking for...
 					break
 				if not bssid:
@@ -536,7 +533,7 @@ class EapeakParsingEngine:
 				addr = 'addr' + str(x)
 				if not addr in packet.fields:
 					return
-			bssid = get_BSSID(packet)
+			bssid = get_bssid(packet)
 			if not bssid:
 				return
 			if bssid and not bssid in self.BSSIDToSSIDMap:
@@ -584,7 +581,7 @@ class EapeakParsingEngine:
 					try:
 						self.get_client_wps_data(packet, client)
 					except:  # pylint: disable=bare-except
-						pass   # Data is corrupted
+						pass  # Data is corrupted
 			network.add_client(client)
 			if not cert_layer:
 				shouldStop = True
@@ -617,7 +614,7 @@ class EapeakParsingEngine:
 		if 'eap_types' in fields:
 			for eap in fields['eap_types']:
 				client.addEapType(eap)
-			del eap # pylint: disable=undefined-loop-variable
+			del eap  # pylint: disable=undefined-loop-variable
 
 	def get_client_wps_data(self, packet, client):
 		wpsData = parse_wps_data(packet.getlayer('WPS').data)
@@ -658,13 +655,13 @@ class EapeakParsingEngine:
 			identity = leap_fields['name']
 			client.add_identity(17, identity)
 		if 'data' in leap_fields and len(leap_fields['data']) == 24:
-			client.add_MS_chap_info(17, response=leap_fields['data'], identity=identity)
+			client.add_ms_chap_info(17, response=leap_fields['data'], identity=identity)
 		del leap_fields, identity
 
 	def get_leap_from_ap_data(self, packet, client):
 		leap_fields = packet.getlayer('LEAP').fields
 		if 'data' in leap_fields and len(leap_fields['data']) == 8:
-			client.add_MS_chap_info(17, challenge=leap_fields['data'], identity=leap_fields['name'])
+			client.add_ms_chap_info(17, challenge=leap_fields['data'], identity=leap_fields['name'])
 		del leap_fields
 
 class CursesEapeakParsingEngine(EapeakParsingEngine):
@@ -988,7 +985,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			max_offset = 0
 		if self.curses_row_offset > max_offset:
 			self.curses_row_offset = max_offset
-		del max_offset
+
 	def get_network_eap(self, network, messages, i):
 		tmpEapTypes = []
 		if network.eapTypes:
@@ -1010,7 +1007,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			else:
 				tmpEapTypes.append(str(y))
 		messages.append((TAB_DEPTH_2, 'EAP Types: ' + ", ".join(tmpEapTypes)))
-		del tmpEapTypes
+
 	def get_certs(self, messages, network, i):
 		for cert in network.x509certs:
 			messages.append((TAB_DEPTH_2, 'Certificate ' + str(i) + ') Expiration Date: ' + str(cert.get_not_after())))
@@ -1029,6 +1026,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			del data
 			i += 1
 			messages.append(CURSES_LINE_BREAK)
+
 	def parse_live_capture(self, packet, quite=True):
 		"""
 		Function is meant to be passed to Scapy's sniff() function similar to:
@@ -1060,7 +1058,7 @@ class CursesEapeakParsingEngine(EapeakParsingEngine):
 			self.screen.refresh()  # This has to be here
 		self.screen.erase()
 		self.screen.refresh()
-		self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY  #Trigger a redraw by adjusting the counter
+		self.curses_lower_refresh_counter = CURSES_LOWER_REFRESH_FREQUENCY  # Trigger a redraw by adjusting the counter
 		self.curses_max_rows = size[0] - 2  # Minus 2 for the border on the top and bottom
 		self.curses_max_columns = size[1] - 2
 		return True

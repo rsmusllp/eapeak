@@ -84,7 +84,7 @@ EXPANDED_EAP_VENDOR_IDS = {
 	0x372a: 'WPS'
 }
 
-def get_BSSID(packet):
+def get_bssid(packet):
 	"""
 	Returns a BSSID from a Scapy packet object, returns None on failure.
 	"""

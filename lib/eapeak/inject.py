@@ -36,15 +36,10 @@ from scapy.layers.l2 import LLC, SNAP, EAPOL
 from scapy.sendrecv import sniff, sendp
 
 # project imports
-from eapeak.common import get_BSSID, get_source, get_destination
+from eapeak.common import get_bssid, get_source, get_destination
 from eapeak.parse import parse_rsn_data, build_rsn_data
-from eapeak.scapylayers.l2 import LEAP, PEAP, EAP #pylint: disable=unused-import
+from eapeak.scapylayers.l2 import LEAP, PEAP, EAP  # pylint: disable=unused-import
 from ipfunc import getHwAddr
-
-
-
-__version__ = '0.0.6'
-
 
 RESPONSE_TIMEOUT = 1.5  # Time to wait for a response
 PRIVACY_NONE = 0
@@ -133,7 +128,8 @@ class SSIDBroadcaster(threading.Thread):
 				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
 				Dot11Elt(ID="DSset", info=self.channel)/
 				Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/
-				Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
+				Dot11Elt(ID=42, info="\x00")/
+				Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
 				Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 			)
 
@@ -161,7 +157,8 @@ class SSIDBroadcaster(threading.Thread):
 				Dot11Beacon(cap='ESS+short-preamble+short-slot')/
 				Dot11Elt(ID="SSID", info=essid)/
 				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
-				Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID="DSset", info=channel)/
+				Dot11Elt(ID=42, info="\x04")/
 				Dot11Elt(ID=47, info="\x04")/
 				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 			)
@@ -170,20 +167,24 @@ class SSIDBroadcaster(threading.Thread):
 				RadioTap()/
 				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/
 				Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/
-				Dot11Elt(ID="SSID", info=essid)/Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
-				Dot11Elt(ID="DSset", info=channel)/Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID="SSID", info=essid)/
+				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
+				Dot11Elt(ID="DSset", info=channel)/
+				Dot11Elt(ID=42, info="\x04")/
 				Dot11Elt(ID=47, info="\x04")/
 				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 			)
 		elif privacy in [PRIVACY_WPA, 'wpa', 'WPA']:
 			beacon = (
-				RadioTap()/Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/
+				RadioTap()/
+				Dot11(addr1="ff:ff:ff:ff:ff:ff", addr2=bssid, addr3=bssid, SC=sequence)/
 				Dot11Beacon(cap='ESS+privacy+short-preamble+short-slot')/
 				Dot11Elt(ID="SSID", info=essid)/
 				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
 				Dot11Elt(ID="DSset", info=channel)/
 				Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/
-				Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
+				Dot11Elt(ID=42, info="\x00")/
+				Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
 				Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 			)
 		else:
@@ -232,7 +233,7 @@ class ClientListener(threading.Thread):
 		packet was sent to EAPeak.
 		"""
 		if packet.haslayer(Dot11Auth) or packet.haslayer(Dot11AssoReq):
-			if get_BSSID(packet) == self.bssid and get_source(packet) != self.bssid:
+			if get_bssid(packet) == self.bssid and get_source(packet) != self.bssid:
 				self.lastpacket = packet
 				return True
 			return False
@@ -252,7 +253,8 @@ class ClientListener(threading.Thread):
 				Dot11ProbeResp(cap='ESS+privacy+short-preamble+short-slot')/
 				Dot11Elt(ID="SSID", info='')/
 				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
-				Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID="DSset", info=self.channel)/
+				Dot11Elt(ID=42, info="\x04")/
 				Dot11Elt(ID=47, info="\x04")/
 				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 			)
@@ -263,8 +265,10 @@ class ClientListener(threading.Thread):
 				Dot11ProbeResp(cap='ESS+short-preamble+short-slot')/
 				Dot11Elt(ID="SSID", info='')/
 				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
-				Dot11Elt(ID="DSset", info=self.channel)/Dot11Elt(ID=42, info="\x04")/
-				Dot11Elt(ID=47, info="\x04")/Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
+				Dot11Elt(ID="DSset", info=self.channel)/
+				Dot11Elt(ID=42, info="\x04")/
+				Dot11Elt(ID=47, info="\x04")/
+				Dot11Elt(ID=50, info="\x0c\x12\x18\x60")
 			)
 		elif value == PRIVACY_WPA:
 			self.probe_response_template = (
@@ -275,7 +279,8 @@ class ClientListener(threading.Thread):
 				Dot11Elt(ID="Rates", info='\x82\x84\x8b\x96\x0c\x12\x18\x24')/
 				Dot11Elt(ID="DSset", info=self.channel)/
 				Dot11Elt(ID=221, info="\x00\x50\xf2\x01\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x02" + "\x01\x00" + "\x00\x50\xf2\x01")/
-				Dot11Elt(ID=42, info="\x00")/Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
+				Dot11Elt(ID=42, info="\x00")/
+				Dot11Elt(ID=50, info="\x30\x48\x60\x6c")/
 				Dot11Elt(ID=221, info="\x00\x50\xf2\x02\x01\x01\x84\x00\x03\xa4\x00\x00\x27\xa4\x00\x00\x42\x43\x5e\x00\x62\x32\x2f\x00")
 			)
 
@@ -358,7 +363,7 @@ class WirelessStateMachine:
 		This is the stop filter for Scapy to be used to check if the
 		packet was sent to this WirelessStateMachine instance.
 		"""
-		if get_destination(packet) == self.source_mac and get_BSSID(packet) == self.bssid:  # and real_source == self.dest_mac:
+		if get_destination(packet) == self.source_mac and get_bssid(packet) == self.bssid:  # and real_source == self.dest_mac:
 			self.lastpacket = packet
 			return True
 		self.lastpacket = None
@@ -482,8 +487,7 @@ class WirelessStateMachine:
 		if rsnInfo is None:
 			rsnInfo = ''  # Did not find rsnInfo in probe response.
 		else:
-			rsnInfoDict = parse_rsn_data(rsnInfo.info)
-			rsnInfo = build_rsn_data(rsnInfoDict)
+			rsnInfo = build_rsn_data(parse_rsn_data(rsnInfo.info))
 			rsnInfo = '\x30' + chr(len(rsnInfo)) + rsnInfo
 		return rsnInfo
 

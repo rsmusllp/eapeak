@@ -34,8 +34,6 @@ from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
 # project imports
 from eapeak.common import EXPANDED_EAP_VENDOR_IDS
 
-
-
 EAP_TYPES[0] = 'NONE'
 
 class WirelessNetwork:
@@ -166,21 +164,21 @@ class WirelessNetwork:
 				output += '\n\t\tExpiration Date: ' + str(cert.get_not_after())
 				data = cert.get_issuer()
 				output += '\n\t\tIssuer:'
-				for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
+				for X509_Name_Entry_inst in data.get_entries_by_nid(13):   # 13 is CN
 					output += '\n\t\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
-				for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
+				for X509_Name_Entry_inst in data.get_entries_by_nid(18):   # 18 is OU
 					output += '\n\t\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
 
 				data = cert.get_subject()
 				output += '\n\t\tSubject:'
-				for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
+				for X509_Name_Entry_inst in data.get_entries_by_nid(13):   # 13 is CN
 					output += '\n\t\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
-				for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
+				for X509_Name_Entry_inst in data.get_entries_by_nid(18):   # 18 is OU
 					output += '\n\t\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
 				del data
 				output += '\n'
 				i += 1
-			del cert #pylint: disable=undefined-loop-variable
+			del cert  # pylint: disable=undefined-loop-variable
 		return output[:-1]
 
 	def update_SSID(self, ssid):
