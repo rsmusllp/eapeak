@@ -30,6 +30,7 @@ from xml.sax.saxutils import escape as XMLEscape
 
 # external imports
 from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
+from eapeak.common import __version__
 
 EAP_TYPES[0] = 'NONE'
 

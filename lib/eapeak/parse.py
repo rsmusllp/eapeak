@@ -47,7 +47,7 @@ import scapy.layers.all  # pylint: disable=unused-import
 from scapy.layers.l2 import EAP
 from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
 
-from eapeak.common import get_bssid, get_source, get_destination, EXPANDED_EAP_VENDOR_IDS
+from eapeak.common import get_bssid, get_source, get_destination, EXPANDED_EAP_VENDOR_IDS, __version__
 import eapeak.networks
 import eapeak.clients
 

@@ -50,6 +50,7 @@ from eapeak.inject import WirelessStateMachine, WirelessStateMachineEAP
 from eapeak.networks import WirelessNetwork
 from eapeak.parse import EapeakParsingEngine
 from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
+from eapeak.common import __version__
 from ipfunc import sanitizeMAC
 
 # external imports

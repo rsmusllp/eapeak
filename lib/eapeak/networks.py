@@ -29,10 +29,10 @@ from xml.sax.saxutils import escape as XMLEscape
 
 # external imports
 from M2Crypto import X509
-from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
 
 # project imports
-from eapeak.common import EXPANDED_EAP_VENDOR_IDS
+from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
+from eapeak.common import EXPANDED_EAP_VENDOR_IDS, __version__
 
 EAP_TYPES[0] = 'NONE'
 

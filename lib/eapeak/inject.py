@@ -36,7 +36,7 @@ from scapy.layers.l2 import LLC, SNAP, EAPOL
 from scapy.sendrecv import sniff, sendp
 
 # project imports
-from eapeak.common import get_bssid, get_source, get_destination
+from eapeak.common import get_bssid, get_source, get_destination, __version__
 from eapeak.parse import parse_rsn_data, build_rsn_data
 from eapeak.scapylayers.l2 import LEAP, PEAP, EAP  # pylint: disable=unused-import
 from ipfunc import getHwAddr
