@@ -44,7 +44,7 @@ from M2Crypto import X509
 from scapy.utils import PcapReader
 import scapy.packet  # pylint: disable=unused-import
 import scapy.layers.all  # pylint: disable=unused-import
-from scapy.layers.l2 import EAP
+from scapy.layers.eap import EAP
 from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
 
 from eapeak.common import get_bssid, get_source, get_destination, EXPANDED_EAP_VENDOR_IDS, __version__
