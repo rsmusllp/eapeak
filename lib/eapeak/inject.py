@@ -32,7 +32,8 @@ import time
 
 # external imports
 from scapy.layers.dot11 import RadioTap, Dot11, Dot11Beacon, Dot11Elt, Dot11Auth, Dot11AssoReq, Dot11AssoResp, Dot11ProbeReq, Dot11Disas, Dot11QoS, Dot11ProbeResp
-from scapy.layers.l2 import LLC, SNAP, EAPOL
+from scapy.layers.eap import EAPOL
+from scapy.layers.l2 import LLC, SNAP
 from scapy.sendrecv import sniff, sendp
 
 # project imports
