@@ -35,7 +35,7 @@ if version[0] == 2 and version[1] < 7:
 
 setup(
 	name='EAPeak',
-	version='0.1.7',
+	version='0.1.8',
 	description='EAPeak Wireless Analysis Suite',
 
 	author='Spencer McIntyre',
