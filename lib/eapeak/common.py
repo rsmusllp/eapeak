@@ -38,7 +38,7 @@ SIOCGIFADDR = 0x8915
 # from linux/if.h
 IFNAMSIZ = 16
 
-__version__ = "0.1.6"
+__version__ = '0.1.7'
 
 BSSID_SEARCH_RECURSION = 3
 BSSIDPositionMap = {
