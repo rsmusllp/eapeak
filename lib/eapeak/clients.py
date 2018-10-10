@@ -23,14 +23,11 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
-# native imports
-from base64 import standard_b64encode as b64encode
-from binascii import hexlify
-from xml.sax.saxutils import escape as XMLEscape
+import base64
+import binascii
+import xml.sax.saxutils
 
-# external imports
 from eapeak.scapylayers.l2 import eap_types as EAP_TYPES
-from eapeak.common import __version__
 
 EAP_TYPES[0] = 'NONE'
 
@@ -82,22 +79,22 @@ class WirelessClient:
 			identity = 'UNKNOWN'
 
 		if challenge:
-			challenge = hexlify(challenge)
-			challenge = ":".join([challenge[y:y+2] for y in range(0, len(challenge), 2)])
-			self.mschap.append({'t':eaptype, 'c':challenge, 'i':identity})
+			challenge = binascii.hexlify(challenge)
+			challenge = ":".join([challenge[y:y + 2] for y in range(0, len(challenge), 2)])
+			self.mschap.append({'t': eaptype, 'c': challenge, 'i': identity})
 		if response and len(self.mschap):  # Adding a response string, but checking at least one challenge string exists.
-			response = hexlify(response)
+			response = binascii.hexlify(response)
 			response = ":".join([response[y:y+2] for y in range(0, len(response), 2)])
 			for value in self.mschap:
 				if not 'r' in value:
 					continue
 				if response == value['r'] and identity == value['i']:
 					return
-			respObj = self.mschap[len(self.mschap) - 1]  # Get the last response dictionary object
-			if identity and identity != respObj['i']:
+			resp_obj = self.mschap[len(self.mschap) - 1]  # Get the last response dictionary object
+			if identity and identity != resp_obj['i']:
 				return 1
-			if not 'r' in respObj:
-				respObj['r'] = response
+			if not 'r' in resp_obj:
+				resp_obj['r'] = response
 			else:
 				return 2
 
@@ -106,40 +103,41 @@ class WirelessClient:
 		This returns a string of human readable information describing
 		the client object, tabs is an optional offset.
 		"""
-		output = ('\t' * tabs) + 'MAC: ' + self.mac + '\n'
-		output += ('\t' * tabs) + 'Associated BSSID: ' + self.bssid + '\n'
+		tab = '    '
+		output = (tab * tabs) + 'MAC: ' + self.mac + '\n'
+		output += (tab * tabs) + 'Associated BSSID: ' + self.bssid + '\n'
 
 		if self.identities:
-			output += ('\t' * tabs) + 'Identities:\n\t' + ('\t' * tabs) + ("\n\t" + ('\t' * tabs)).join(self.identities.keys()) + '\n'
+			output += (tab * tabs) + 'Identities:\n' + (tab * (tabs + 1)) + ('\n' + (tab * (tabs + 1))).join(self.identities.keys()) + '\n'
 
 		if self.eapTypes:
-			output += ('\t' * tabs) + 'EAP Types:\n'
+			output += (tab * tabs) + 'EAP Types:\n'
 			for eapType in self.eapTypes:
 				if eapType in EAP_TYPES.keys():
-					output += ('\t' * tabs) + '\t' + EAP_TYPES[eapType] + '\n'
+					output += (tab * (tabs + 1)) + EAP_TYPES[eapType] + '\n'
 				else:
-					output += ('\t' * tabs) + '\tEAP Type #' + str(eapType) + '\n'
+					output += (tab * (tabs + 1)) + 'EAP Type #' + str(eapType) + '\n'
 		if self.mschap:
 			output_control = True
 			for respObj in self.mschap:
 				if not 'r' in respObj:  # No response
 					continue
 				if output_control:
-					output += ('\t' * tabs) + 'MS Chap Challenge & Responses:\n'
+					output += (tab * tabs) + 'MS Chap Challenge & Responses:\n'
 					output_control = False
-				output += ('\t' * tabs) + '\tEAP Type: ' + EAP_TYPES[respObj['t']]
+				output += (tab * (tabs + 1)) + 'EAP Type: ' + EAP_TYPES[respObj['t']]
 				if respObj['i']:
 					output += ', Identity: ' + respObj['i']
 				output += '\n'
-				output += ('\t' * tabs) + '\t\tC: ' + respObj['c'] + '\n' + ('\t' * tabs) + '\t\tR: ' + respObj['r'] + '\n'
+				output += (tab * (tabs + 2)) + 'C: ' + respObj['c'] + '\n' + (tab * (tabs + 2)) + 'R: ' + respObj['r'] + '\n'
 		if self.wpsData:
 			output_control = True
 			for piece in ['Manufacturer', 'Model Name', 'Model Number', 'Device Name']:
 				if self.wpsData.has_key(piece):
 					if output_control:
-						output += ('\t' * tabs) + 'WPS Information:\n'
+						output += (tab * tabs) + 'WPS Information:\n'
 						output_control = False
-					output += ('\t' * tabs) + '\t' + piece + ': ' + self.wpsData[piece] + '\n'  # pylint: disable=unsubscriptable-object
+					output += (tab * (tabs + 1)) + piece + ': ' + self.wpsData[piece] + '\n'  # pylint: disable=unsubscriptable-object
 		return output.rstrip()
 
 	def get_xml(self):
@@ -155,14 +153,14 @@ class WirelessClient:
 		for identity, eaptype in self.identities.items():
 			tmp = ElementTree.SubElement(root, 'identity')
 			tmp.set('eap-type', str(eaptype))
-			tmp.text = XMLEscape(identity)
+			tmp.text = xml.sax.saxutils.escape(identity)
 
 		for respObj in self.mschap:
 			if not 'r' in respObj:
 				continue
 			tmp = ElementTree.SubElement(root, 'mschap')
 			tmp.set('eap-type', str(respObj['t']))
-			tmp.set('identity', XMLEscape(respObj['i']))
+			tmp.set('identity', xml.sax.saxutils.escape(respObj['i']))
 			ElementTree.SubElement(tmp, 'challenge').text = respObj['c']
 			ElementTree.SubElement(tmp, 'response').text = respObj['r']
 
@@ -176,5 +174,5 @@ class WirelessClient:
 				if self.wpsData.has_key(info):
 					tmp = ElementTree.SubElement(wps, info.replace(' ', '-'))
 					tmp.set('encoding', 'base64')
-					tmp.text = b64encode(self.wpsData[info])  # pylint: disable=unsubscriptable-object
+					tmp.text = base64.standard_b64encode(self.wpsData[info])  # pylint: disable=unsubscriptable-object
 		return root

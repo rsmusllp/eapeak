@@ -125,56 +125,57 @@ class WirelessNetwork:
 		This returns a string of human readable information describing
 		the network object.
 		"""
+		tab = '    '
 		output = 'SSID: ' + self.ssid + '\n'
 		if self.bssids:
-			output += '\tBSSIDs:\n\t\t' + "\n\t\t".join(self.bssids) + '\n'
+			output += tab + 'BSSIDs:\n' + (tab * 2) + ('\n' + (tab * 2)).join(self.bssids) + '\n'
 		if self.eapTypes:
-			output += '\tEAP Types:\n'
+			output += tab + 'EAP Types:\n'
 			for eapType in self.eapTypes:
 				if eapType in EAP_TYPES.keys():
-					output += '\t\t' + EAP_TYPES[eapType] + '\n'
+					output += (tab * 2) + EAP_TYPES[eapType] + '\n'
 				else:
-					output += '\t\tEAP Type: ' + str(eapType) + '\n'
+					output += (tab * 2) + 'EAP Type: ' + str(eapType) + '\n'
 		if self.expandedVendorIDs:
-			output += '\tExpanded EAP Vendor IDs:\n'
+			output += tab + 'Expanded EAP Vendor IDs:\n'
 			for vendorID in self.expandedVendorIDs:
 				if vendorID in EXPANDED_EAP_VENDOR_IDS.keys():
-					output += '\t\t' + EXPANDED_EAP_VENDOR_IDS[vendorID] + '\n'
+					output += (tab * 2) + EXPANDED_EAP_VENDOR_IDS[vendorID] + '\n'
 				else:
-					output += '\t\tVendor ID: ' + str(vendorID) + '\n'
+					output += (tab * 2) + 'Vendor ID: ' + str(vendorID) + '\n'
 		if self.wpsData:
 			output_control = True
 			for piece in ['Manufacturer', 'Model Name', 'Model Number', 'Device Name']:
 				if self.wpsData.has_key(piece):
 					if output_control:
-						output += '\tWPS Information:\n'
+						output += tab + 'WPS Information:\n'
 						output_control = False
-					output += '\t\t' + piece + ': ' + self.wpsData[piece] + '\n'  # pylint: disable=unsubscriptable-object
+					output += (tab * 2) + piece + ': ' + self.wpsData[piece] + '\n'  # pylint: disable=unsubscriptable-object
 		if self.clients:
-			output += '\tClient Data:\n'
+			output += tab + 'Client Data:\n'
 			i = 1
 			for client in self.clients.values():
-				output += '\t\tClient #' + str(i) + '\n' + client.show(2) + '\n\n'
+				output += (tab * 2) + 'Client #' + str(i) + '\n' + client.show(2) + '\n\n'
 				i += 1
 		if self.x509certs:
-			output += '\tCertificates:'
+			output += tab + 'Certificates:'
 			i = 1
 			for cert in self.x509certs:
-				output += '\n\t\tCertificate #' + str(i)
-				output += '\n\t\tExpiration Date: ' + str(cert.get_not_after())
+				output += '\n' + (tab * 2) + 'Certificate #' + str(i)
+				output += '\n' + (tab * 2) + 'Expiration Date: ' + str(cert.get_not_after())
 				data = cert.get_issuer()
-				output += '\n\t\tIssuer:'
+				output += '\n' + (tab * 2) + 'Issuer:'
 				for X509_Name_Entry_inst in data.get_entries_by_nid(13):   # 13 is CN
-					output += '\n\t\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
+					output += '\n' + (tab * 2) + tab + 'CN: ' + X509_Name_Entry_inst.get_data().as_text()
 				for X509_Name_Entry_inst in data.get_entries_by_nid(18):   # 18 is OU
-					output += '\n\t\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
+					output += '\n' + (tab * 2) + tab + 'OU: ' + X509_Name_Entry_inst.get_data().as_text()
 
 				data = cert.get_subject()
-				output += '\n\t\tSubject:'
+				output += '\n' + (tab * 2) + 'Subject:'
 				for X509_Name_Entry_inst in data.get_entries_by_nid(13):   # 13 is CN
-					output += '\n\t\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
+					output += '\n' + (tab * 2) + tab + 'CN: ' + X509_Name_Entry_inst.get_data().as_text()
 				for X509_Name_Entry_inst in data.get_entries_by_nid(18):   # 18 is OU
-					output += '\n\t\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
+					output += '\n' + (tab * 2) + tab + 'OU: ' + X509_Name_Entry_inst.get_data().as_text()
 				del data
 				output += '\n'
 				i += 1
