@@ -1,20 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "44564f25889f19fe639983e0b517928798f87b01a6ad23abf8af0b1101cd4bf4"
-        },
-        "host-environment-markers": {
-            "implementation_name": "cpython",
-            "implementation_version": "0",
-            "os_name": "posix",
-            "platform_machine": "x86_64",
-            "platform_python_implementation": "CPython",
-            "platform_release": "4.17.14-202.fc28.x86_64",
-            "platform_system": "Linux",
-            "platform_version": "#1 SMP Wed Aug 15 12:29:25 UTC 2018",
-            "python_full_version": "2.7.15",
-            "python_version": "2.7",
-            "sys_platform": "linux2"
+            "sha256": "9db949713ad5a9e44f48b02f05bfacbe449da980a9d3d89291b360e173c3c152"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -33,19 +20,18 @@
             "hashes": [
                 "sha256:a1b2751cdadc6afac3df8a5799676b7b7c67a6ad144bb62d38563062e7cd3fc6"
             ],
+            "index": "pypi",
             "version": "==0.30.1"
         },
         "scapy": {
-            "hashes": [
-                "sha256:452f714f5c2eac6fd0a6146b1dbddfc24dd5f4103f3ed76227995a488cfb2b73"
-            ],
-            "version": "==2.4.0"
+            "git": "https://github.com/zeroSteiner/scapy-com",
+            "ref": "79f55855a4d55b4eaba5370cb4c7b094ab956c79"
         },
         "typing": {
             "hashes": [
-                "sha256:a4c8473ce11a65999c8f59cb093e70686b6c84c98df58c1dae9b3b196089858a",
+                "sha256:4027c5f6127a6267a435201981ba156de91ad0d1d98e9ddc2aa173453453492d",
                 "sha256:57dcf675a99b74d64dacf6fba08fb17cf7e3d5fdff53d4a30ea2a5e7e52543d4",
-                "sha256:4027c5f6127a6267a435201981ba156de91ad0d1d98e9ddc2aa173453453492d"
+                "sha256:a4c8473ce11a65999c8f59cb093e70686b6c84c98df58c1dae9b3b196089858a"
             ],
             "version": "==3.6.6"
         }

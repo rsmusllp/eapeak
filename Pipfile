@@ -4,10 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-
 "M2Crypto" = "*"
-scapy = "*"
-
+scapy = {git = "https://github.com/zeroSteiner/scapy-com"}
 
 [dev-packages]
 
