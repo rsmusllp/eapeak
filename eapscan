@@ -49,7 +49,7 @@ from ipfunc import sanitizeMAC
 from scapy.config import conf
 from scapy.volatile import RandMAC
 
-__authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
+__authors__ = ['Spencer McIntyre']
 
 not_needed_layers = [
 	# This list keeps layers we don't need out and consumes less memory
@@ -217,17 +217,17 @@ def check_ap_connection(interface, bssid, essid, quite=True, verbose=False):
 		sys.stdout.write(STATUS + 'Checking Connection To AP')
 		sys.stdout.flush()
 	tries = 0
-	errCode = 0
+	err_code = 0
 	try:
 		while tries < 3:
 			statemachine = WirelessStateMachine(interface, bssid, str(RandMAC('00:*:*:*:*:*')), bssid)
 			if not quite and verbose:
 				print('\n' + STATUS + 'Verbose: using source MAC address: ' + statemachine.source_mac + ' for testing connections')
-			errCode = statemachine.connect(essid)
-			if errCode != 0 and errCode < 4:
-				if not quite and verbose and errCode == 2:
+			err_code = statemachine.connect(essid)
+			if err_code != 0 and err_code < 4:
+				if not quite and verbose and err_code == 2:
 					print('\n' + ERROR + 'Verbose: did not receive a reply to the authentication request')
-				if not quite and verbose and errCode == 3:
+				if not quite and verbose and err_code == 3:
 					print('\n' + ERROR + 'Verbose: did not receive a reply to the association request')
 				time.sleep(ERROR_SLEEP_TIME)
 				if not quite:
@@ -236,7 +236,7 @@ def check_ap_connection(interface, bssid, essid, quite=True, verbose=False):
 				tries += 1
 				continue
 			statemachine.close()
-			if errCode == 0:
+			if err_code == 0:
 				tries = 0
 			break
 	except KeyboardInterrupt:
@@ -245,7 +245,7 @@ def check_ap_connection(interface, bssid, essid, quite=True, verbose=False):
 	if tries != 0:
 		if not quite:
 			sys.stdout.write('\n' + ERROR + 'Connection Attempts Failed\n')
-			if errCode == 4 or errCode == 5:
+			if err_code == 4 or err_code == 5:
 				sys.stdout.write('\n' + ERROR + 'Access Point Rejected Authentication/Associations Requests\n')
 			sys.stdout.flush()
 		return False

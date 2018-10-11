@@ -31,80 +31,40 @@
 #
 
 import argparse
-try:
-	import curses  # pylint: disable=unused-import
-	curses_enabled = True
-except ImportError:
-	curses_enabled = False
 import logging
 import os
-from select import error as select_error
-from socket import error as socketError
+import select
+import socket
 import sys
 import thread
 
-# project imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'lib'))
 from eapeak.parse import CursesEapeakParsingEngine  # pylint: disable=no-name-in-module
 from eapeak.parse import EapeakParsingEngine  # pylint: disable=no-name-in-module
 from eapeak.common import __version__
-# external imports
+
 try:
 	from M2Crypto import X509
 except ImportError:
 	print('Error: Missing M2Crypto, Please Install The M2Crypto Libraries')
 	print('Error: Now Exiting...')
 	sys.exit(1)
+
 from scapy.config import conf
 from scapy.sendrecv import sniff
 
+try:
+	import curses  # pylint: disable=unused-import
+except ImportError:
+	curses_enabled = False
+else:
+	curses_enabled = True
 
-__authors__ = ['Spencer McIntyre', 'SecureState R&D Team']
+__authors__ = ['Spencer McIntyre']
 
-not_needed_layers = [
-	# This list keeps layers we don't need out and consumes less memory
-	'bluetooth',
-	'cdp',
-	'dhcp',
-	'dhcp6',
-	'dns',
-	'eigrp',
-	'hsrp',
-	'inet6',
-	'ir',
-	'isakmp',
-	'l2tp',
-	'llmnr',
-	'mgcp',
-	'mobileip',
-	'netbios',
-	'netflow',
-	'ntp',
-	'ospf',
-	'ppi_cace',
-	'ppi_geotag',
-	'ppi',
-	'ppp',
-	'rip',
-	'rtp',
-	'sctp',
-	'sebek',
-	'skinny',
-	'smb',
-	'snmp',
-	'tftp',
-	'vrrp',
-	'x509'
-	]
-
-for layer in not_needed_layers:
-	if layer in conf.load_layers:
-		conf.load_layers.remove(layer)
-del layer, not_needed_layers  # pylint: disable=undefined-loop-variable
 conf.ipv6_enabled = False
 
 def main():
-
 	parser = argparse.ArgumentParser(description='EAPeak: Analysis tool for EAP enabled wireless networks', conflict_handler='resolve')
 	parser.add_argument('-f', '--file', dest='pcaps', nargs='+', action='store', default=[], help='the path to the PCap file(s)')
 	parser.add_argument('-s', '--ssid', dest='target_ssids', nargs='+', action='store', help='specific SSID(s) to analyze')
@@ -114,6 +74,7 @@ def main():
 		parser.add_argument('-c', '--curses', dest='use_curses', action='store_true', default=False, help='use the BETA curses interface when capturing live')
 	parser.add_argument('-i', '--iface', dest='interface', action='store', help='interface to use when capturing live')
 	parser.add_argument('-v', '--version', action='version', version=parser.prog + ' Version: ' + __version__)
+
 	save_xml_parser = parser.add_mutually_exclusive_group()
 	save_xml_parser.add_argument('--no-xml', dest='dont_save_xml', action='store_true', default=False, help='don\'t export data to xml (default: save when capturing)')
 	save_xml_parser.add_argument('--xml', dest='save_xml', action='store_true', default=False, help='export data to xml (default: save when capturing)')
@@ -123,16 +84,16 @@ def main():
 	cert_opts.add_argument('--x509-format', dest='export_x509_format', action='store', choices=['der', 'pem'], default='pem', help='format to save certificates as, default: pem')
 
 	results = parser.parse_args()
-	storedFiles = results.pcaps
-	targetSSIDs = results.target_ssids
-	targetBSSIDs = results.target_bssids
+	stored_files = results.pcaps
+	target_ssids = results.target_ssids
+	target_bssids = results.target_bssids
 	capture_live = results.capture_live
 	interface = results.interface
 	if capture_live and curses_enabled:
 		use_curses = results.use_curses
 	else:
 		use_curses = False
-	if not capture_live and not storedFiles:
+	if not capture_live and not stored_files:
 		parser.print_help()
 		return 0
 
@@ -147,7 +108,7 @@ def main():
 	if capture_live and os.getuid():
 		print('Error: You must be root when using live mode.')
 		return 1
-	#pylint: disable=anomalous-backslash-in-string
+	# pylint: disable=anomalous-backslash-in-string
 	print("""
  ________ 
 < eapeak >
@@ -165,81 +126,81 @@ def main():
 	scapy_runtime_log.setLevel(logging.ERROR)
 
 	if use_curses:
-		if targetBSSIDs:
-			print "Sorry, BSSID filtering currently only supported by EAPEAK Parsing Engine"
-		eapeakParser = CursesEapeakParsingEngine(targetSSIDs)
+		if target_bssids:
+			print("Sorry, BSSID filtering currently only supported by EAPeak Parsing Engine")
+		eapeak_parser = CursesEapeakParsingEngine(target_ssids)
 	else:
-		eapeakParser = EapeakParsingEngine(targetSSIDs, targetBSSIDs)  # pylint: disable=redefined-variable-type
-	del targetSSIDs, targetBSSIDs
+		eapeak_parser = EapeakParsingEngine(target_ssids, target_bssids)  # pylint: disable=redefined-variable-type
+	del target_ssids, target_bssids
 
-	xmlFiles = []
-	pcapFiles = []
-	for filename in storedFiles:
+	xml_files = []
+	pcap_files = []
+	for filename in stored_files:
 		if 'xml' in filename.split('.')[-1]:
-			if filename in xmlFiles:
+			if filename in xml_files:
 				continue
 			if not os.access(filename, os.R_OK):
 				print('Error: Could not read file \'' + filename + '\' (invalid permissions)')
 				continue
-			xmlFiles.append(filename)
+			xml_files.append(filename)
 		elif 'cap' in filename.split('.')[-1]:
-			if filename in pcapFiles:
+			if filename in pcap_files:
 				continue
 			if not os.access(filename, os.R_OK):
 				print('Error: Could not read file \'' + filename + '\' (invalid permissions)')
 				continue
-			pcapFiles.append(filename)
+			pcap_files.append(filename)
 
-	if xmlFiles:
-		eapeakParser.parse_xml_files(xmlFiles, False)
-	if pcapFiles:
-		eapeakParser.parse_pcap_files(pcapFiles, False)
+	if xml_files:
+		eapeak_parser.parse_xml_files(xml_files, False)
+	if pcap_files:
+		eapeak_parser.parse_pcap_files(pcap_files, False)
 	print('')
-	del pcapFiles, xmlFiles, storedFiles
+	del pcap_files, xml_files, stored_files
 
 	if capture_live:
 		print('Begining Live Capture...')
 		if use_curses:
-			errCode = eapeakParser.init_curses()
-			if errCode:
-				print({1:'Screen must be at least 99x25 for Curses'}[errCode])
+			err_code = eapeak_parser.init_curses()
+			if err_code:
+				print({1: 'Screen must be at least 99x25 for Curses'}[err_code])
 				return 1
-			del errCode
+			del err_code
 			timeout = 1.5
-			thread.start_new_thread(eapeakParser.curses_interaction_handler, ())
-			thread.start_new_thread(eapeakParser.curses_screen_draw_handler, (save_to_xml, ))
+			thread.start_new_thread(eapeak_parser.curses_interaction_handler, ())
+			thread.start_new_thread(eapeak_parser.curses_screen_draw_handler, (save_to_xml, ))
 		else:
 			timeout = None
 		while True:
 			try:
-				sniff(iface=interface, store=0, prn=lambda packet: eapeakParser.parse_live_capture(packet, use_curses), timeout=timeout)
-				if (use_curses and not eapeakParser.curses_enabled) or not use_curses:
+				sniff(iface=interface, store=0, prn=lambda packet: eapeak_parser.parse_live_capture(packet, use_curses), timeout=timeout)
+				if (use_curses and not eapeak_parser.curses_enabled) or not use_curses:
 					break
 			except KeyboardInterrupt:
 				break
-			except socketError:
+			except socket.error:
 				if use_curses:
-					eapeakParser.cleanup_curses()
+					eapeak_parser.cleanup_curses()
 				print('Error: Invalid Interface')
 				return 0
-			except select_error:
-				if use_curses and not eapeakParser.curses_enabled:
+			except select.error:
+				if use_curses and not eapeak_parser.curses_enabled:
 					break
 		del timeout
 		if use_curses:
-			eapeakParser.cleanup_curses()
+			eapeak_parser.cleanup_curses()
 		print('\nStopping Live Capture...')
 		print('')
 
-	if not len(eapeakParser.KnownNetworks):
+	if not len(eapeak_parser.KnownNetworks):
 		print('Found No Usable Information\nTry Again With A Larger Capture')
 		return 0
 	elif export_x509:
-		networks = eapeakParser.KnownNetworks.keys()
+		networks = eapeak_parser.KnownNetworks.keys()
 		networks.sort()
 		certs = {}
 		for network in networks:
-			network = eapeakParser.KnownNetworks[network]
+			network = eapeak_parser.KnownNetworks[network]
 			for cert in network.x509certs:
 				certs[cert] = network.ssid
 		if len(certs) == 0:
@@ -249,19 +210,19 @@ def main():
 		i = 1
 		for cert in certs.keys():
 			output += 'Certificate #' + str(i) + ' SSID: ' + certs[cert]
-			output += '\n\tExpiration Date: ' + str(cert.get_not_after())
+			output += '\n    Expiration Date: ' + str(cert.get_not_after())
 			data = cert.get_issuer()
-			output += '\n\tIssuer:'
-			for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
-				output += '\n\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
-			for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
-				output += '\n\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
+			output += '\n    Issuer:'
+			for X509_Name_Entry_inst in data.get_entries_by_nid(13):  # 13 is CN
+				output += '\n        CN: ' + X509_Name_Entry_inst.get_data().as_text()
+			for X509_Name_Entry_inst in data.get_entries_by_nid(18):  # 18 is OU
+				output += '\n        OU: ' + X509_Name_Entry_inst.get_data().as_text()
 			data = cert.get_subject()
-			output += '\n\tSubject:'
-			for X509_Name_Entry_inst in data.get_entries_by_nid(13): 	# 13 is CN
-				output += '\n\t\tCN: ' + X509_Name_Entry_inst.get_data().as_text()
-			for X509_Name_Entry_inst in data.get_entries_by_nid(18): 	# 18 is OU
-				output += '\n\t\tOU: ' + X509_Name_Entry_inst.get_data().as_text()
+			output += '\n    Subject:'
+			for X509_Name_Entry_inst in data.get_entries_by_nid(13):  # 13 is CN
+				output += '\n        CN: ' + X509_Name_Entry_inst.get_data().as_text()
+			for X509_Name_Entry_inst in data.get_entries_by_nid(18):  # 18 is OU
+				output += '\n        OU: ' + X509_Name_Entry_inst.get_data().as_text()
 			del data
 			output += '\n\n'
 			i += 1
@@ -305,21 +266,20 @@ def main():
 		return 0
 
 	if save_to_xml:
-		eapeakParser.export_xml()
+		eapeak_parser.export_xml()
 	intro0 = 'EAPeak Summary of Wireless Networks'
-	intro1 = 'Found ' + str(len(eapeakParser.KnownNetworks)) + ' Network(s)'
+	intro1 = 'Found ' + str(len(eapeak_parser.KnownNetworks)) + ' Network(s)'
 	intro = '*' * len(intro0) + '****\n'
 	intro += '* ' + intro0 + ' *\n'
 	intro += '* ' + intro1 + ' ' * (len(intro0) - len(intro1)) + ' *\n'
 	intro += '*' * len(intro0) + '****\n'
 	print(intro)
 	del intro, intro0, intro1
-	networks = eapeakParser.KnownNetworks.keys()
+	networks = eapeak_parser.KnownNetworks.keys()
 	networks.sort()
 	for network in networks:
-		print(eapeakParser.KnownNetworks[network].show())
+		print(eapeak_parser.KnownNetworks[network].show())
 		print('')
-
 	return 0
 
 
